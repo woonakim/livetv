@@ -2,26 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://spoqa.github.io/spoqa-han-sans/css/SpoqaHanSansNeo.css');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --brand: rgb(14, 165, 233);
+  --brand-light: rgba(14, 165, 233, 0.1);
+  --bg: rgb(240, 249, 255);
+  --surface: rgb(255, 255, 255);
+  --surface-alt: #f4f4f4;
+  --text-primary: rgb(10, 10, 10);
+  --text-secondary: rgb(107, 114, 128);
+  --border: rgb(186, 230, 253);
+  --accent-green: rgb(24, 210, 100);
+  --sidebar-width: 350px;
+  --header-height: 95px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Spoqa Han Sans Neo', 'Spoqa Han Sans', 'Noto Sans KR', sans-serif;
+  font-size: 14px;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* 카드 그림자 */
+.shadow-card { box-shadow: 0px 1px 3px 0px rgba(8,8,8,0.38); }
+
+/* 스크롤바 */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+
+/* 공지 스크롤 텍스트 */
+.scrolling-text {
+  white-space: nowrap;
+  animation: scroll-left 20s linear infinite;
 }
+@keyframes scroll-left {
+  0%   { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* 라이브 점 */
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+.live-dot { animation: pulse-live 1.2s ease-in-out infinite; }
+
+/* 공통 badge */
+.badge-live {
+  @apply inline-flex items-center gap-1 text-white text-xs font-bold px-2 py-0.5 rounded-full;
+  background: #ef4444;
+}
+.badge-brand {
+  @apply inline-flex items-center text-white text-xs font-bold px-2 py-0.5 rounded-full;
+  background: var(--brand);
+}
+.btn-brand {
+  @apply font-bold text-white rounded-lg transition-colors text-sm;
+  background: var(--brand);
+}
+.btn-brand:hover { filter: brightness(1.1); }

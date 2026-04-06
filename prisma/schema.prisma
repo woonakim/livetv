@@ -1,0 +1,523 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  PICKSTER
+  BJ
+  ADMIN
+  SUPERADMIN
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  password     String
+  nickname     String    @unique
+  role         UserRole  @default(USER)
+  points       Int       @default(0)
+  exp          Int       @default(0)
+  name         String?
+  phone        String?
+  email        String?   @unique
+  referredBy   String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  pointLogs       PointLog[]
+  attendances     Attendance[]
+  pointExchanges  PointExchange[]
+  posts           Post[]
+  comments        Comment[]
+  chatMessages    ChatMessage[]
+  analysisPosts   AnalysisPost[]    @relation("UserAnalysisPosts")
+  picksterProfile PicksterProfile?
+  accessLogs      AccessLog[]
+  partnerLikes    PartnerLike[]
+  bjProfile       BjProfile?
+  bjChatMessages  BjChatMessage[]
+}
+
+model ChatMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  nickname  String
+  role      UserRole @default(USER)
+  level     Int      @default(0)
+  text      String
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+enum PointType {
+  EARN
+  DEDUCT
+  EXCHANGE
+}
+
+model PointLog {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  type      PointType
+  amount    Int
+  reason    String
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model Attendance {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  date      DateTime @db.Date
+  points    Int
+  streak    Int      @default(1)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+}
+
+enum ExchangeStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+model PointExchange {
+  id          Int            @id @default(autoincrement())
+  userId      Int
+  amount      Int
+  status      ExchangeStatus @default(PENDING)
+  productName String
+  memo        String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id])
+}
+
+model Board {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  slug          String   @unique
+  readLevel     UserRole @default(USER)
+  writeLevel    UserRole @default(USER)
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  posts         Post[]
+}
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  boardId     Int
+  authorId    Int
+  title       String
+  content     String   @db.Text
+  isPinned    Boolean  @default(false)
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  board       Board    @relation(fields: [boardId], references: [id])
+  author      User     @relation(fields: [authorId], references: [id])
+  comments    Comment[]
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  authorId  Int
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+// ─── 레벨 설정 ─────────────────────
+model LevelSetting {
+  id        Int      @id @default(autoincrement())
+  level     Int      @unique
+  name      String   @default("")    // 레벨 이름
+  requiredExp Int    @default(0)      // 필요 경험치
+  badge     String   @default("")    // 뱃지 이모지/텍스트
+  color     String   @default("")    // 레벨 색상 (hex, e.g. #3b82f6)
+  bgColor   String   @default("")    // 레벨 배경색 (hex, e.g. #eff6ff)
+  updatedAt DateTime @updatedAt
+}
+
+model AttendanceSetting {
+  id        Int      @id @default(autoincrement())
+  dayNumber Int      @unique
+  points    Int
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 제휴업체 ─────────────────────
+model Partner {
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String   @default("공식제휴")
+  badge     String   @default("공식제휴")
+  desc      String
+  img       String   @default("/business.png")
+  thumb     String   @default("")
+  likes     Int      @default(0)
+  views     Int      @default(0)
+  content   String   @db.Text
+  contact   String   @default("1234")
+  site      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partnerLikes PartnerLike[]
+}
+
+// ─── 제휴업체 좋아요 ─────────────────────
+model PartnerLike {
+  id        Int      @id @default(autoincrement())
+  partnerId Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  partner   Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([partnerId, userId])
+}
+
+// ─── 포인트 상품 ─────────────────────
+model PointProduct {
+  id        Int      @id @default(autoincrement())
+  name      String
+  price     Int
+  thumb     String   @default("")
+  category  String   @default("spon")
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 이벤트 게시판 ─────────────────────
+model EventBoard {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String   @db.Text
+  author    String   @default("라이브TV")
+  isPinned  Boolean  @default(false)
+  viewCount Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 이벤트매치 ─────────────────────
+model Event {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String   @db.Text
+  bannerImg   String   @default("")
+  bottomImg   String   @default("")
+  teamA       String
+  teamB       String
+  betType     String   @default("승패")
+  reward      String   @default("10,000원 포인트")
+  deadline    DateTime
+  isActive    Boolean  @default(true)
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  votes       EventVote[]
+}
+
+model EventVote {
+  id        Int      @id @default(autoincrement())
+  eventId   Int
+  userId    Int
+  pick      String
+  createdAt DateTime @default(now())
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+}
+
+// ─── 공지사항 ─────────────────────
+model Notice {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String   @db.Text
+  author    String   @default("라이브TV")
+  isPinned  Boolean  @default(false)
+  viewCount Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 활동 보상 설정 ─────────────────────
+model ActivityReward {
+  id          Int      @id @default(autoincrement())
+  activityKey String   @unique   // signup, attendance, chat, event_join, event_correct, analysis_write, referral, post_write, comment_write
+  label       String             // 표시명
+  points      Int      @default(0)
+  exp         Int      @default(0)
+  isActive    Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── 분석 포스트 ─────────────────────
+enum AnalysisResult {
+  PENDING
+  WIN
+  LOSS
+  CANCEL
+}
+
+model AnalysisPost {
+  id          Int             @id @default(autoincrement())
+  authorId    Int
+  sport       String          // soccer, baseball, basketball 등
+  league      String          // EPL, KBO, NBA 등
+  matchTime   DateTime
+  homeTeam    String
+  homeLogo    String          @default("")
+  homeRecord  String          @default("")
+  awayTeam    String
+  awayLogo    String          @default("")
+  awayRecord  String          @default("")
+  title       String
+  content     String          @db.Text
+  prediction  String          // "맨체스터 시티 우세"
+  odds        String          @default("")
+  result      AnalysisResult  @default(PENDING)
+  isPublic    Boolean         @default(true)
+  isPremium   Boolean         @default(false)
+  viewCount   Int             @default(0)
+  likeCount   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  author      User            @relation("UserAnalysisPosts", fields: [authorId], references: [id])
+}
+
+// ─── 픽스터 프로필 ─────────────────────
+model PicksterProfile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  avatar      String   @default("")
+  sport       String   // 전문 종목
+  intro       String   @db.Text
+  tier        String   @default("브론즈")
+  monthlyFee  Int      @default(0)
+  isApproved  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+// ─── 팀 로고 ─────────────────────
+model TeamLogo {
+  id        Int      @id @default(autoincrement())
+  nameKr    String   @unique        // 한글 팀명 (API에서 오는 이름)
+  nameEn    String   @default("")   // 영문 팀명
+  sport     String   @default("")   // soccer, baseball, basketball 등
+  league    String   @default("")   // KBO, NPB, EPL 등
+  logoPath  String                  // /team-logos/LG.png
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 사이트 설정 ─────────────────────
+model SiteSetting {
+  id                  Int      @id @default(1)
+  showLogoBroadcast   Boolean  @default(true)   // 중계 페이지 팀 로고
+  showLogoMain        Boolean  @default(true)   // 메인 페이지 팀 로고
+  showLogoAnalysis    Boolean  @default(true)   // 분석 페이지 팀 로고
+  showLogoYoutube     Boolean  @default(true)   // 유튜브 하이라이트 팀 로고
+  anthropicApiKey     String   @default("")    // Anthropic API 키
+  anthropicEnabled    Boolean  @default(false) // Claude 버튼 노출
+  openaiApiKey        String   @default("")    // OpenAI API 키
+  openaiEnabled       Boolean  @default(false) // GPT 버튼 노출
+  geminiApiKey        String   @default("")    // Gemini API 키
+  geminiEnabled       Boolean  @default(false) // Gemini 버튼 노출
+  gnewsApiKey         String   @default("")    // GNews API 키
+  youtubeApiKey       String   @default("")    // YouTube Data API 키
+  levelDisplayMode    String   @default("badge") // badge: Lv.숫자 뱃지, emoji: 이모지/이미지, none: 비표시
+  updatedAt           DateTime @updatedAt
+}
+
+// ─── 배너 관리 ─────────────────────
+model Banner {
+  id        Int      @id @default(autoincrement())
+  name      String   @default("")       // 배너 이름 (관리용)
+  imageUrl  String   @default("")       // 이미지 경로
+  linkUrl   String   @default("")       // 클릭 시 이동 URL
+  position  String   @default("left_top") // left_top, left_bottom, right_top, right_bottom
+  sort      Int      @default(0)        // 정렬 순서
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── 팝업 관리 ─────────────────────
+model Popup {
+  id          Int      @id @default(autoincrement())
+  name        String   @default("")       // 팝업 이름 (관리용)
+  imageUrl    String   @default("")       // 이미지 경로
+  linkUrl     String   @default("")       // 클릭 시 이동 URL
+  width       Int      @default(400)      // 팝업 너비 (px)
+  height      Int      @default(500)      // 팝업 높이 (px)
+  posX        Int      @default(100)      // X 위치
+  posY        Int      @default(100)      // Y 위치
+  hideToday   Boolean  @default(true)     // 오늘 하루 안보기 버튼
+  isActive    Boolean  @default(true)
+  startDate   DateTime?                   // 노출 시작일
+  endDate     DateTime?                   // 노출 종료일
+  sort        Int      @default(0)        // 정렬 순서
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── 접속/로그인 기록 ─────────────────────
+model AccessLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?     // 로그인 유저 (비로그인은 null)
+  type        String   @default("visit") // visit, login
+  ip          String   @default("")
+  mac         String   @default("") // 브라우저에서 MAC 수집 불가, fingerprint 대체
+  userAgent   String   @default("") @db.Text
+  device      String   @default("") // desktop, mobile, tablet
+  browser     String   @default("")
+  os          String   @default("")
+  referer     String   @default("") // 접속경로 (이전 URL)
+  path        String   @default("") // 접속한 페이지
+  createdAt   DateTime @default(now())
+
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([ip])
+}
+
+// ─── 회원가입 선택필드 설정 (관리자) ─────────────────────
+model RegistrationSetting {
+  id           Int      @id @default(1)
+  requireName  Boolean  @default(false)
+  requirePhone Boolean  @default(false)
+  requireEmail Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+}
+
+// ─── BJ 프로필 ─────────────────────
+model BjProfile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  streamKey   String   @unique @default("")
+  title       String   @default("방송 제목")
+  description String   @default("") @db.Text
+  category    String   @default("") // soccer, baseball 등
+  thumbnail   String   @default("")
+  avatar      String   @default("")     // 프로필 이미지 경로 또는 이모지
+  avatarType  String   @default("emoji") // emoji | image
+  statusMessage String @default("")    // 방송 상태 메시지
+  offlineMsg  String   @default("방송 준비 중입니다. 잠시만 기다려주세요!")
+  bannerUrl   String   @default("")     // 가입문의 배너 링크
+  bannerText  String   @default("가입문의") // 배너 텍스트
+  pinnedMessage String @default("")     // 고정 메시지
+  systemMessages String @default("[]") @db.Text // JSON: [{text, intervalMin}]
+  isLive      Boolean  @default(false)
+  liveStartedAt DateTime? // 방송 시작 시각
+  isApproved  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  viewCount   Int      @default(0)     // 누적 시청자 (unique IP)
+  liveViewers Int      @default(0)     // 현재 실시간 시청자
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id])
+  chatMessages BjChatMessage[]
+  chatBans    BjChatBan[]
+  managers    BjChatManager[]
+  viewLogs    BjViewLog[]
+}
+
+// ─── BJ 시청 기록 (IP 기반 중복 방지) ─────────────────────
+model BjViewLog {
+  id          Int      @id @default(autoincrement())
+  bjProfileId Int
+  ip          String
+  lastSeen    DateTime @default(now()) // heartbeat 갱신용
+  createdAt   DateTime @default(now())
+
+  bjProfile   BjProfile @relation(fields: [bjProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([bjProfileId, ip])
+  @@index([bjProfileId, lastSeen])
+}
+
+// ─── BJ 채팅 매니저 ─────────────────────
+model BjChatManager {
+  id          Int      @id @default(autoincrement())
+  bjProfileId Int
+  userId      Int
+  nickname    String   @default("")
+  createdAt   DateTime @default(now())
+
+  bjProfile   BjProfile @relation(fields: [bjProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([bjProfileId, userId])
+}
+
+// ─── BJ 채팅 차단 ─────────────────────
+model BjChatBan {
+  id          Int      @id @default(autoincrement())
+  bjProfileId Int
+  userId      Int
+  nickname    String   @default("")
+  reason      String   @default("")
+  createdAt   DateTime @default(now())
+
+  bjProfile   BjProfile @relation(fields: [bjProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([bjProfileId, userId])
+}
+
+// ─── BJ 개별 채팅 ─────────────────────
+model BjChatMessage {
+  id          Int      @id @default(autoincrement())
+  bjProfileId Int
+  userId      Int?
+  nickname    String
+  role        UserRole @default(USER)
+  level       Int      @default(0)
+  text        String
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  bjProfile   BjProfile @relation(fields: [bjProfileId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id])
+}

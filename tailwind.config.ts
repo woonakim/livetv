@@ -11,6 +11,15 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        brand: {
+          primary: "#0ea5e9",
+          dark: "#0369a1",
+          light: "#e0f2fe",
+          accent: "#000000",
+        },
+      },
+      fontFamily: {
+        sans: ["Pretendard", "Noto Sans KR", "sans-serif"],
       },
     },
   },

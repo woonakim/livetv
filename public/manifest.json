@@ -1,0 +1,15 @@
+{
+  "name": "라이브TV - 스포츠 중계",
+  "short_name": "라이브TV",
+  "description": "실시간 스포츠 중계 및 분석 플랫폼",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0ea5e9",
+  "theme_color": "#0ea5e9",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/real_logo/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "/real_logo/livetv_logo.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/real_logo/livetv_logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
