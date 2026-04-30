@@ -19,6 +19,9 @@ export default function AnalysisEditPage() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiProviders, setAiProviders] = useState<{ anthropic?: boolean; openai?: boolean; gemini?: boolean }>({});
+  const [userRole, setUserRole] = useState<string>("");
+  const [homeLogo, setHomeLogo] = useState("");
+  const [awayLogo, setAwayLogo] = useState("");
 
   const [sport, setSport] = useState("soccer");
   const [league, setLeague] = useState("");
@@ -40,6 +43,7 @@ export default function AnalysisEditPage() {
     fetch("/api/site-settings").then(r => r.json()).then(s => {
       setAiProviders({ anthropic: s.anthropicEnabled, openai: s.openaiEnabled, gemini: s.geminiEnabled });
     }).catch(() => {});
+    fetch("/api/auth/me").then(r => r.json()).then(d => setUserRole(d.user?.role ?? "")).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -53,8 +57,10 @@ export default function AnalysisEditPage() {
         setMatchHour(String(mt.getHours()).padStart(2, "0"));
         setMatchMinute(String(Math.round(mt.getMinutes() / 5) * 5).padStart(2, "0"));
         setHomeTeam(post.home.name);
+        setHomeLogo(post.home.logo || "");
         setHomeRecord(post.home.record);
         setAwayTeam(post.away.name);
+        setAwayLogo(post.away.logo || "");
         setAwayRecord(post.away.record);
         setTitle(post.title);
         setContent(post.content);
@@ -75,7 +81,7 @@ export default function AnalysisEditPage() {
       const res = await fetch(`/api/analysis/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sport, league, matchTime: `${matchDate}T${matchHour}:${matchMinute}`, homeTeam, homeLogo: logoMap[homeTeam] || "", homeRecord, awayTeam, awayLogo: logoMap[awayTeam] || "", awayRecord, title, content, prediction, odds, isPremium }),
+        body: JSON.stringify({ sport, league, matchTime: `${matchDate}T${matchHour}:${matchMinute}`, homeTeam, homeLogo: homeLogo || logoMap[homeTeam] || "", homeRecord, awayTeam, awayLogo: awayLogo || logoMap[awayTeam] || "", awayRecord, title, content, prediction, odds, isPremium }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -193,7 +199,12 @@ export default function AnalysisEditPage() {
 
         <div>
           <label className="text-xs font-bold mb-1 block" style={{ color: "var(--text-secondary)" }}>분석 내용</label>
-          <MarkdownEditor value={content} onChange={setContent} rows={12} onAiGenerate={handleAiGenerate} aiLoading={aiLoading} aiProviders={aiProviders} />
+          <MarkdownEditor
+            value={content} onChange={setContent} rows={12}
+            onAiGenerate={["PICKSTER", "ADMIN", "SUPERADMIN"].includes(userRole) ? handleAiGenerate : undefined}
+            aiLoading={aiLoading}
+            aiProviders={aiProviders}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">

@@ -18,7 +18,7 @@ async function main() {
   let count = 0;
   for (const t of TEAMS) {
     await prisma.teamLogo.upsert({
-      where: { nameKr: t.nameKr },
+      where: { nameKr_sport: { nameKr: t.nameKr, sport: t.sport } },
       create: t,
       update: { nameEn: t.nameEn, logoPath: t.logoPath, sport: t.sport, league: t.league },
     });

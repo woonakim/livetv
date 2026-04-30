@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { todayDateKST } from "@/lib/date-kr";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -24,11 +25,11 @@ export async function GET(req: NextRequest) {
   }
 
   if (dateFilter) {
-    const d = new Date(dateFilter);
-    d.setHours(0, 0, 0, 0);
-    const next = new Date(d);
-    next.setDate(next.getDate() + 1);
-    where.date = { gte: d, lt: next };
+    // dateFilter는 YYYY-MM-DD 형식, KST 기준으로 해석
+    const [y, m, d] = dateFilter.split("-").map(Number);
+    const kstStart = new Date(Date.UTC(y, m - 1, d) - 9 * 60 * 60 * 1000);
+    const kstEnd = new Date(kstStart.getTime() + 24 * 60 * 60 * 1000);
+    where.date = { gte: kstStart, lt: kstEnd };
   }
 
   const [records, total] = await Promise.all([
@@ -42,11 +43,10 @@ export async function GET(req: NextRequest) {
     prisma.attendance.count({ where }),
   ]);
 
-  // 통계
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // 통계 (KST 기준)
+  const today = todayDateKST();
   const [todayCount, totalCount, avgStreak] = await Promise.all([
-    prisma.attendance.count({ where: { createdAt: { gte: today } } }),
+    prisma.attendance.count({ where: { date: { gte: today } } }),
     prisma.attendance.count(),
     prisma.attendance.aggregate({ _avg: { streak: true } }),
   ]);

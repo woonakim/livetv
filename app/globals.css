@@ -67,3 +67,39 @@ body {
   background: var(--brand);
 }
 .btn-brand:hover { filter: brightness(1.1); }
+
+/* Rich editor HTML content */
+.prose-content h1 { font-size: 1.5em; font-weight: 800; margin: 0.8em 0 0.4em; }
+.prose-content h2 { font-size: 1.25em; font-weight: 700; margin: 0.7em 0 0.3em; }
+.prose-content h3 { font-size: 1.1em; font-weight: 600; margin: 0.6em 0 0.2em; }
+.prose-content p { margin: 0.3em 0; }
+.prose-content ul, .prose-content ol { padding-left: 1.5em; margin: 0.4em 0; }
+.prose-content ul { list-style: disc; }
+.prose-content ol { list-style: decimal; }
+.prose-content li { margin: 0.15em 0; }
+.prose-content blockquote { border-left: 3px solid var(--brand); padding-left: 0.8em; margin: 0.5em 0; opacity: 0.85; }
+.prose-content img { max-width: 100%; height: auto; border-radius: 6px; margin: 0.5em 0; }
+.prose-content a { color: var(--brand); text-decoration: underline; }
+.prose-content strong { font-weight: 700; }
+
+/* ─── Gold Accent (클래식 골드, 1px, 글로우, 카드+스크롤바) ─── */
+:root {
+  --gold: rgb(212,175,55);
+  --gold-light: rgba(212,175,55,0.15);
+  --gold-glow: rgba(212,175,55,0.4);
+}
+
+/* 카드/섹션 테두리 */
+[style*="1px solid var(--border)"] { border-color: var(--gold) !important; }
+.rounded-lg[style*="var(--surface)"], .rounded-xl[style*="var(--surface)"] {
+  border: 1px solid var(--gold) !important;
+  box-shadow: 0 0 6px var(--gold-glow);
+}
+[style*="boxShadow"][class*="rounded"] { border: 1px solid var(--gold) !important; }
+
+/* 스크롤바 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(212,175,55,0.6); }
+* { scrollbar-color: rgba(212,175,55,0.4) transparent !important; scrollbar-width: thin; }

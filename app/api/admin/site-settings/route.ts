@@ -1,3 +1,4 @@
+import { adminLog } from "@/lib/admin-log";
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
@@ -21,21 +22,33 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json();
-  const data: Record<string, boolean> = {};
-  if (body.showLogoBroadcast !== undefined) data.showLogoBroadcast = body.showLogoBroadcast;
-  if (body.showLogoMain !== undefined) data.showLogoMain = body.showLogoMain;
-  if (body.showLogoAnalysis !== undefined) data.showLogoAnalysis = body.showLogoAnalysis;
-  if (body.showLogoYoutube !== undefined) data.showLogoYoutube = body.showLogoYoutube;
-  if (body.anthropicApiKey !== undefined) data.anthropicApiKey = body.anthropicApiKey;
-  if (body.anthropicEnabled !== undefined) data.anthropicEnabled = body.anthropicEnabled;
-  if (body.openaiApiKey !== undefined) data.openaiApiKey = body.openaiApiKey;
-  if (body.openaiEnabled !== undefined) data.openaiEnabled = body.openaiEnabled;
-  if (body.geminiApiKey !== undefined) data.geminiApiKey = body.geminiApiKey;
-  if (body.geminiEnabled !== undefined) data.geminiEnabled = body.geminiEnabled;
-  if (body.gnewsApiKey !== undefined) data.gnewsApiKey = body.gnewsApiKey;
-  if (body.youtubeApiKey !== undefined) data.youtubeApiKey = body.youtubeApiKey;
-  if (body.levelDisplayMode !== undefined) data.levelDisplayMode = body.levelDisplayMode;
+  const data: Record<string, unknown> = {};
+  // 화면 표시 / API 키
+  for (const k of [
+    "showLogoBroadcast","showLogoMain","showLogoAnalysis","showLogoYoutube",
+    "anthropicApiKey","anthropicEnabled","openaiApiKey","openaiEnabled",
+    "geminiApiKey","geminiEnabled","gnewsApiKey","youtubeApiKey",
+    "levelDisplayMode","noticeTicker","adminAlarmSound",
+    // 가입 시 수집 토글
+    "collectBirthDateOnSignup","collectPhoneOnSignup",
+    // 생일 보상
+    "birthdayBonusEnabled","birthdayMinLevel",
+    // 교환 락업
+    "exchangeMinLevel","exchangeLockEnabled",
+    // 분석글 일반 유저
+    "allowUserAnalysis","analysisRewardDailyLimit",
+    // 채팅 캡
+    "chatRewardDailyPointCap","chatRewardDailyExpCap",
+    "chatMinLength","chatMinLengthEnabled","chatDuplicateBlockEnabled",
+    // 텔레그램 알림
+    "telegramBotToken","telegramSubscribePasscode","telegramNotifyEnabled",
+  ]) {
+    if (body[k] !== undefined) data[k] = body[k];
+  }
 
   await prisma.siteSetting.update({ where: { id: 1 }, data });
+  await adminLog({ action: "site.settings.update", detail: body });
   return NextResponse.json({ ok: true });
 }
+
+export { PATCH as PUT };

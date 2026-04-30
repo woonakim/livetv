@@ -25,7 +25,7 @@ async function main() {
     for (const t of s.teams) {
       if (!t.logo || !t.team) continue;
 
-      const existing = await prisma.teamLogo.findUnique({ where: { nameKr: t.team } });
+      const existing = await prisma.teamLogo.findUnique({ where: { nameKr_sport: { nameKr: t.team, sport } } });
       if (existing) {
         skipped++;
         continue;

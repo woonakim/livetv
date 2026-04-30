@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 
 const SRS_API = "http://localhost:1985/api/v1/streams";

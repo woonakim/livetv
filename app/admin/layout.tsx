@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { getSocket } from "@/lib/socket";
+import { playAlarm, AlarmSoundKey } from "@/lib/alarm-sounds";
 
 interface MenuItem { label: string; href: string; icon: string }
 interface MenuGroup { label: string; icon: string; items: MenuItem[] }
@@ -15,6 +17,7 @@ const MENU: (MenuItem | MenuGroup)[] = [
       { label: "회원 목록", href: "/admin/users", icon: "fas fa-list" },
       { label: "활동 보상 설정", href: "/admin/rewards", icon: "fas fa-star" },
       { label: "레벨 설정", href: "/admin/levels", icon: "fas fa-layer-group" },
+      { label: "IP 차단", href: "/admin/banned-ips", icon: "fas fa-ban" },
     ],
   },
   {
@@ -25,6 +28,8 @@ const MENU: (MenuItem | MenuGroup)[] = [
       { label: "채팅 관리", href: "/admin/chat", icon: "fas fa-comments" },
       { label: "배너 관리", href: "/admin/banners", icon: "fas fa-image" },
       { label: "팝업 관리", href: "/admin/popups", icon: "fas fa-window-restore" },
+      { label: "한줄공지", href: "/admin/ticker", icon: "fas fa-scroll" },
+      { label: "자동 분석", href: "/admin/auto-analysis", icon: "fas fa-robot" },
     ],
   },
   {
@@ -49,9 +54,19 @@ const MENU: (MenuItem | MenuGroup)[] = [
     label: "통계/기록", icon: "fas fa-chart-bar",
     items: [
       { label: "접속 기록", href: "/admin/access-logs", icon: "fas fa-chart-line" },
+      { label: "감사 로그", href: "/admin/logs", icon: "fas fa-clipboard-list" },
+      { label: "최근 인증 내역", href: "/admin/phone-logs", icon: "fas fa-mobile-alt" },
     ],
   },
   { label: "사이트 설정", href: "/admin/settings", icon: "fas fa-cog" },
+  { label: "SEO 설정", href: "/admin/seo", icon: "fas fa-search" },
+  {
+    label: "문서", icon: "fas fa-book",
+    items: [
+      { label: "개발 인수인계", href: "/admin/docs/handover", icon: "fas fa-file-code" },
+      { label: "운영 가이드", href: "/admin/docs/guide", icon: "fas fa-file-alt" },
+    ],
+  },
 ];
 
 function isGroup(item: MenuItem | MenuGroup): item is MenuGroup {
@@ -94,8 +109,120 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   };
 
+  // 대기 신청 건수
+  const [pendingBj, setPendingBj] = useState(0);
+  const [pendingPickster, setPendingPickster] = useState(0);
+  const [pendingExchange, setPendingExchange] = useState(0);
+  // 최근 감사 로그
+  interface LogEntry { nickname: string; action: string; ip: string; createdAt: string; }
+  const [recentLogs, setRecentLogs] = useState<LogEntry[]>([]);
+  const [showLogs, setShowLogs] = useState(true);
+
+  // 알림 시스템
+  const [alarmMuted, setAlarmMuted] = useState(false);
+  const [newNotify, setNewNotify] = useState<{ type: string; nickname: string; product?: string } | null>(null);
+  const alarmInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const alarmSoundRef = useRef<AlarmSoundKey>("beep");
+
+  // 사이트 설정에서 알림 사운드 로드
+  useEffect(() => {
+    fetch("/api/site-settings").then(r => r.json()).then(d => {
+      if (d.adminAlarmSound) alarmSoundRef.current = d.adminAlarmSound as AlarmSoundKey;
+    }).catch(() => {});
+  }, []);
+
+  const playAlarmSound = useCallback(() => {
+    playAlarm(alarmSoundRef.current);
+  }, []);
+
+  const startRepeatAlarm = useCallback(() => {
+    if (alarmInterval.current) clearInterval(alarmInterval.current);
+    alarmInterval.current = setInterval(() => {
+      if (!alarmMuted) playAlarmSound();
+    }, 60000);
+  }, [alarmMuted, playAlarmSound]);
+
+  const stopRepeatAlarm = useCallback(() => {
+    if (alarmInterval.current) { clearInterval(alarmInterval.current); alarmInterval.current = null; }
+  }, []);
+
+  // 대기 건수 로드 + 미처리 건 있으면 알림 시작
+  const loadPending = useCallback((initialLoad = false) => {
+    if (!user) return;
+    let totalPending = 0;
+    Promise.all([
+      fetch("/api/admin/stats").then(r => r.json()).then(d => {
+        setPendingPickster(d.pendingPicksters || 0);
+        setPendingExchange(d.pendingExchanges || 0);
+        totalPending += (d.pendingPicksters || 0) + (d.pendingExchanges || 0);
+      }).catch(() => {}),
+      fetch("/api/admin/bj").then(r => r.json()).then(d => {
+        if (Array.isArray(d)) {
+          const cnt = d.filter((b: { isApproved: boolean }) => !b.isApproved).length;
+          setPendingBj(cnt);
+          totalPending += cnt;
+        }
+      }).catch(() => {}),
+    ]).then(() => {
+      if (initialLoad && totalPending > 0 && !alarmMuted) {
+        playAlarmSound();
+        startRepeatAlarm();
+      }
+    });
+  }, [user, alarmMuted, playAlarmSound, startRepeatAlarm]);
+
+  // Socket.IO 관리자 알림
+  useEffect(() => {
+    if (!user) return;
+    const s = getSocket();
+    s.emit("admin:join");
+
+    const onNotify = (data: { type: string; data: { nickname: string; product?: string } }) => {
+      const NOTIFY_LABEL: Record<string, string> = { bj_apply: "BJ 신청", pickster_apply: "픽스터 신청", exchange_apply: "포인트 교환" };
+      setNewNotify({ type: NOTIFY_LABEL[data.type] || data.type, nickname: data.data.nickname, product: data.data.product });
+      loadPending();
+      if (!alarmMuted) playAlarmSound();
+      startRepeatAlarm();
+      // 5초 후 토스트 숨김
+      setTimeout(() => setNewNotify(null), 5000);
+    };
+
+    s.on("admin:notify", onNotify);
+    return () => { s.off("admin:notify", onNotify); };
+  }, [user, alarmMuted, playAlarmSound, startRepeatAlarm, loadPending]);
+
+  // 대기 건이 0이면 반복 알림 중지
+  useEffect(() => {
+    if (pendingBj + pendingPickster + pendingExchange === 0) stopRepeatAlarm();
+    else if (!alarmMuted) startRepeatAlarm();
+  }, [pendingBj, pendingPickster, pendingExchange, alarmMuted, startRepeatAlarm, stopRepeatAlarm]);
+
+  useEffect(() => { return () => stopRepeatAlarm(); }, [stopRepeatAlarm]);
+
+  useEffect(() => {
+    if (!user) return;
+    loadPending(true);
+    // 최근 감사 로그
+    fetch("/api/admin/logs?limit=5").then(r => r.json()).then(d => {
+      setRecentLogs((d.logs || []).slice(0, 3));
+    }).catch(() => {});
+  }, [user]);
+
   if (loading) return <div className="flex items-center justify-center min-h-screen text-sm text-gray-500">로딩중...</div>;
   if (!user) return null;
+
+  const alerts = [
+    pendingBj > 0 && { label: "BJ 신청", count: pendingBj, href: "/admin/bj" },
+    pendingPickster > 0 && { label: "픽스터 신청", count: pendingPickster, href: "/admin/picksters" },
+    pendingExchange > 0 && { label: "포인트 교환 신청", count: pendingExchange, href: "/admin/exchanges" },
+  ].filter(Boolean) as { label: string; count: number; href: string }[];
+
+  const ACTION_LABELS: Record<string, string> = {
+    "user.update": "회원 수정", "bj.update": "BJ 관리", "event.create": "이벤트 생성",
+    "site.settings.update": "사이트 설정", "site.seo.update": "SEO 설정",
+    "auto-analysis.settings.update": "자동 분석 설정", "auto-analysis.manual-run": "자동 분석 실행",
+    "auto-analysis.publish": "분석글 게시", "auto-analysis.delete": "분석글 삭제",
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -178,16 +305,86 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
           <div className="text-sm font-semibold text-gray-700 hidden lg:block">관리자 패널</div>
           <div className="flex items-center gap-3">
+            <button onClick={() => { setAlarmMuted(!alarmMuted); if (!alarmMuted) stopRepeatAlarm(); }}
+              className="text-[11px] font-bold px-2 py-1.5 rounded transition-colors"
+              style={{ background: alarmMuted ? "#fee2e2" : "#dcfce7", color: alarmMuted ? "#dc2626" : "#16a34a" }}
+              title={alarmMuted ? "알림 꺼짐" : "알림 켜짐"}>
+              <i className={`fas ${alarmMuted ? "fa-bell-slash" : "fa-bell"} mr-1`} />
+              {alarmMuted ? "알림 OFF" : "알림 ON"}
+            </button>
+            <Link href="/admin/team-logos" className="text-[12px] font-bold px-3 py-1.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
+              <i className="fas fa-search text-[10px] mr-1" />로고 검색
+            </Link>
             <Link href="/" className="text-[12px] font-bold px-3 py-1.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
               <i className="fas fa-external-link-alt text-[10px] mr-1" />사이트 이동
             </Link>
             <span className="text-xs text-gray-500">{user.nickname}</span>
           </div>
         </header>
+        {/* 대기 신청 알림 배너 */}
+        {alerts.length > 0 && (
+          <div className="border-b border-gray-200 bg-gray-50">
+            {alerts.map(a => (
+              <Link key={a.label} href={a.href} className="flex items-center gap-1 px-4 py-1 text-[12px] hover:bg-gray-100 transition-colors" style={{ color: "#374151" }}>
+                <i className="fas fa-exclamation-circle text-[10px] text-amber-500" />
+                {a.label}건이 <span className="font-bold text-red-600">{a.count}건</span> 있습니다
+                <i className="fas fa-chevron-right text-[8px] ml-1 text-gray-400" />
+              </Link>
+            ))}
+          </div>
+        )}
         <main className="flex-1 p-4 overflow-auto">
           {children}
         </main>
       </div>
+
+      {/* 신규 신청 알림 토스트 */}
+      {newNotify && (
+        <div className="fixed top-16 right-4 z-[60] w-[320px] rounded-lg shadow-2xl overflow-hidden animate-bounce-once"
+          style={{ background: "#fff", border: "2px solid #ef4444" }}>
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+              <i className="fas fa-bell text-red-500 text-sm" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-bold text-gray-800">
+                {newNotify.type}
+              </p>
+              <p className="text-[11px] text-gray-500">
+                <span className="font-bold text-blue-600">{newNotify.nickname}</span>
+                {newNotify.product ? `님이 ${newNotify.product} 교환을 신청했습니다` : "님이 신청했습니다"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 최근 감사 로그 플로팅 */}
+      {showLogs && recentLogs.length > 0 && !newNotify && (
+        <div className="fixed top-16 right-4 z-50 w-[340px] rounded-lg shadow-xl overflow-hidden" style={{ background: "#fff", border: "1px solid #e5e7eb" }}>
+          <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800">
+            <span className="text-[11px] font-bold text-white">최근 관리 활동</span>
+            <button onClick={() => setShowLogs(false)} className="text-gray-400 hover:text-white text-[11px]">✕</button>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {recentLogs.map((log, i) => (
+              <div key={i} className="px-3 py-2">
+                <div className="text-[11px]" style={{ color: "#374151" }}>
+                  <span className="font-bold text-blue-600">{log.nickname}</span>
+                  <span className="text-gray-500"> 관리자가 </span>
+                  <span className="font-bold">{ACTION_LABELS[log.action] || log.action}</span>
+                  <span className="text-gray-500">을(를) 변경하였습니다.</span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
+                  <span>{new Date(log.createdAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span>·</span>
+                  <span className="font-mono">{log.ip}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

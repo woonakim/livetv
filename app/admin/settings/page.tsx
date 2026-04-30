@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { playAlarm, ALARM_SOUND_LABELS, AlarmSoundKey } from "@/lib/alarm-sounds";
 
 interface Settings {
   showLogoBroadcast: boolean;
@@ -16,6 +17,7 @@ interface Settings {
   gnewsApiKey: string;
   youtubeApiKey: string;
   levelDisplayMode: string;
+  adminAlarmSound: string;
 }
 
 export default function AdminSettingsPage() {
@@ -118,6 +120,41 @@ export default function AdminSettingsPage() {
               <p className="text-lg mb-1">{opt.preview}</p>
               <p className="text-[11px] font-bold">{opt.label}</p>
               <p className="text-[9px] mt-0.5 opacity-70">{opt.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 관리자 알림 사운드 */}
+      <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+        <div className="px-4 py-2.5" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+          <span className="text-[13px] font-bold" style={{ color: "var(--text-primary)" }}>관리자 알림 사운드</span>
+          <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>신규 BJ/픽스터/포인트 교환 신청 시 재생되는 알림음</p>
+        </div>
+        <div className="px-4 py-3 grid grid-cols-3 gap-2" style={{ background: "var(--surface)" }}>
+          {(Object.keys(ALARM_SOUND_LABELS) as AlarmSoundKey[]).map(key => (
+            <button
+              key={key}
+              onClick={async () => {
+                playAlarm(key);
+                setSaving(true);
+                await fetch("/api/admin/site-settings", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ adminAlarmSound: key }),
+                });
+                setSettings({ ...settings, adminAlarmSound: key });
+                setSaving(false);
+              }}
+              className="p-3 rounded-lg text-center transition-all flex flex-col items-center gap-1"
+              style={{
+                background: settings.adminAlarmSound === key ? "var(--brand)" : "var(--bg)",
+                color: settings.adminAlarmSound === key ? "#fff" : "var(--text-primary)",
+                border: `2px solid ${settings.adminAlarmSound === key ? "var(--brand)" : "var(--border)"}`,
+              }}
+            >
+              <i className="fas fa-volume-up text-lg" />
+              <p className="text-[12px] font-bold">{ALARM_SOUND_LABELS[key]}</p>
+              <span className="text-[10px] opacity-70">클릭하여 듣기</span>
             </button>
           ))}
         </div>
@@ -234,6 +271,196 @@ export default function AdminSettingsPage() {
           </div>
         ))}
       </div>
+
+      {/* 가입 시 추가 정보 수집 — RegistrationSetting */}
+      <RegistrationSettingSection />
+
+      {/* 텔레그램 봇 알림 */}
+      <TelegramNotifySection />
+
+      <p className="text-[11px] text-center mt-2" style={{ color: "var(--text-secondary)" }}>
+        💡 생일 보상 / 분석글 작성 권한 / 채팅 보상 캡은{" "}
+        <a href="/admin/rewards" className="font-bold" style={{ color: "var(--brand)" }}>활동 보상 설정</a>
+        에서 관리합니다.
+      </p>
     </div>
   );
 }
+
+// ─── 가입 시 정보 수집 섹션 (RegistrationSetting API) ─────────────
+function RegistrationSettingSection() {
+  const [setting, setSetting] = useState({ requireName: false, requirePhone: false, requireEmail: false, requireBirthDate: false });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/registration-setting").then(r => r.json()).then(d => {
+      if (d.setting) setSetting({
+        requireName: !!d.setting.requireName,
+        requirePhone: !!d.setting.requirePhone,
+        requireEmail: !!d.setting.requireEmail,
+        requireBirthDate: !!d.setting.requireBirthDate,
+      });
+    }).catch(() => {});
+  }, []);
+
+  const items: { key: keyof typeof setting; label: string; desc: string }[] = [
+    { key: "requireName", label: "이름 수집", desc: "가입 시 이름 입력 필드 노출 (필수)" },
+    { key: "requirePhone", label: "휴대폰 번호 수집", desc: "가입 시 휴대폰 번호 필드 노출 (인증은 별도)" },
+    { key: "requireEmail", label: "이메일 수집", desc: "가입 시 이메일 필드 노출 (필수)" },
+    { key: "requireBirthDate", label: "생년월일 수집", desc: "가입 시 생년월일 필드 노출 (등록 후 변경 불가)" },
+  ];
+
+  return (
+    <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+      <div className="px-4 py-3" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+        <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>가입 시 추가 정보 수집</h2>
+        <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>회원가입 폼에 노출할 입력 항목 (전부 필수 입력)</p>
+      </div>
+      {items.map((item, idx) => (
+        <div key={item.key} className="flex items-center justify-between px-4 py-3" style={{ background: "var(--surface)", borderTop: idx > 0 ? "1px solid var(--border)" : "none" }}>
+          <div>
+            <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{item.label}</p>
+            <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>{item.desc}</p>
+          </div>
+          <button
+            onClick={async () => {
+              setSaving(true);
+              const newVal = !setting[item.key];
+              const next = { ...setting, [item.key]: newVal };
+              await fetch("/api/admin/registration-setting", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(next),
+              });
+              setSetting(next);
+              setSaving(false);
+            }}
+            disabled={saving}
+            className="relative w-11 h-6 rounded-full transition-colors"
+            style={{ background: setting[item.key] ? "var(--brand)" : "#d1d5db" }}
+          >
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ left: setting[item.key] ? "22px" : "2px" }} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface Subscriber { chatId: string; username: string; firstName: string; subscribedAt: string }
+
+// ─── 텔레그램 봇 알림 섹션 ─────────────
+function TelegramNotifySection() {
+  const [enabled, setEnabled] = useState(false);
+  const [token, setToken] = useState("");
+  const [passcode, setPasscode] = useState("");
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const flashMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 5000); };
+
+  const loadSubscribers = () => {
+    fetch("/api/admin/telegram-subscribers").then(r => r.json()).then(d => Array.isArray(d) ? setSubscribers(d) : setSubscribers([])).catch(() => {});
+  };
+
+  useEffect(() => {
+    fetch("/api/admin/site-settings").then(r => r.json()).then(d => {
+      setEnabled(!!d?.telegramNotifyEnabled);
+      setToken(d?.telegramBotToken || "");
+      setPasscode(d?.telegramSubscribePasscode || "");
+    }).catch(() => {});
+    loadSubscribers();
+  }, []);
+
+  const patch = async (body: Record<string, unknown>) => {
+    setSaving(true);
+    await fetch("/api/admin/site-settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setSaving(false);
+  };
+
+  const sendTest = async () => {
+    const res = await fetch("/api/admin/telegram-test", { method: "POST" });
+    const j = await res.json();
+    flashMsg(j.ok ? `✓ 발송 성공 (${j.sent}/${j.sent + j.failed}명)` : `✗ 실패: ${j.error || "?"}`);
+  };
+
+  const setupWebhook = async () => {
+    const res = await fetch("/api/admin/telegram-webhook-setup", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "register" }),
+    });
+    const j = await res.json();
+    flashMsg(j.ok ? `✓ Webhook 등록됨: ${j.webhookUrl}` : `✗ 실패: ${JSON.stringify(j.telegramResponse?.description || j)}`);
+  };
+
+  const deleteSubscriber = async (chatId: string) => {
+    if (!confirm("구독자를 삭제하시겠습니까?")) return;
+    await fetch(`/api/admin/telegram-subscribers?chatId=${encodeURIComponent(chatId)}`, { method: "DELETE" });
+    loadSubscribers();
+  };
+
+  return (
+    <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+      <div className="px-4 py-3" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+        <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>📨 텔레그램 봇 알림</h2>
+        <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
+          픽스터/BJ/포인트 교환 신청 시 텔레그램 봇으로 알림 발송. 비밀번호 인증을 통과한 구독자에게만 발송됩니다.
+        </p>
+        <p className="text-[10px] mt-1" style={{ color: "var(--text-secondary)" }}>
+          ⓘ <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand)" }}>@BotFather</a>로 봇 생성 → 봇 토큰 받기 → 토큰/비밀번호 저장 → Webhook 등록 → 봇과 대화 후 <code className="px-1 rounded" style={{ background: "var(--bg)" }}>/start</code> + 비밀번호 입력
+        </p>
+      </div>
+      <div className="flex items-center justify-between px-4 py-3 border-t" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <p className="text-sm" style={{ color: "var(--text-primary)" }}>활성화</p>
+        <button onClick={async () => { const v = !enabled; setEnabled(v); await patch({ telegramNotifyEnabled: v }); }} disabled={saving} className="relative w-11 h-6 rounded-full transition-colors" style={{ background: enabled ? "var(--brand)" : "#d1d5db" }}>
+          <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ left: enabled ? "22px" : "2px" }} />
+        </button>
+      </div>
+      <div className="px-4 py-3 border-t space-y-2" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <label className="text-[11px] font-bold block" style={{ color: "var(--text-secondary)" }}>봇 토큰</label>
+        <div className="flex gap-2">
+          <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="123456:ABC-DEF..." className="flex-1 rounded-lg px-3 py-2 text-sm font-mono" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+          <button onClick={() => patch({ telegramBotToken: token })} disabled={saving} className="px-3 py-2 rounded-lg text-xs font-bold text-white shrink-0" style={{ background: "var(--brand)" }}>저장</button>
+        </div>
+      </div>
+      <div className="px-4 py-3 border-t space-y-2" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <label className="text-[11px] font-bold block" style={{ color: "var(--text-secondary)" }}>구독 비밀번호</label>
+        <p className="text-[10px]" style={{ color: "var(--text-secondary)" }}>봇 사용자가 <code className="px-1 rounded" style={{ background: "var(--bg)" }}>/start</code> 후 입력해야 알림 구독자로 등록됩니다.</p>
+        <div className="flex gap-2">
+          <input value={passcode} onChange={e => setPasscode(e.target.value)} placeholder="원하는 비밀번호 (예: livefelix2026)" className="flex-1 rounded-lg px-3 py-2 text-sm font-mono" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+          <button onClick={() => patch({ telegramSubscribePasscode: passcode })} disabled={saving} className="px-3 py-2 rounded-lg text-xs font-bold text-white shrink-0" style={{ background: "var(--brand)" }}>저장</button>
+        </div>
+      </div>
+      <div className="px-4 py-3 border-t flex flex-wrap items-center gap-2" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <button onClick={setupWebhook} className="px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "#10b981" }}>
+          🔗 Webhook 등록 (봇 활성화)
+        </button>
+        <button onClick={sendTest} className="px-4 py-2 rounded-lg text-xs font-bold text-white" style={{ background: "#3b82f6" }}>
+          🧪 테스트 메시지
+        </button>
+        {msg && <span className="text-[12px] font-bold" style={{ color: msg.startsWith("✓") ? "#16a34a" : "#dc2626" }}>{msg}</span>}
+      </div>
+      <div className="px-4 py-3 border-t" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[12px] font-bold" style={{ color: "var(--text-primary)" }}>구독자 목록 ({subscribers.length}명)</p>
+          <button onClick={loadSubscribers} className="text-[10px] underline" style={{ color: "var(--text-secondary)" }}>새로고침</button>
+        </div>
+        {subscribers.length === 0 ? (
+          <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>아직 구독자가 없습니다. 봇과 대화 후 비밀번호를 입력하면 여기에 표시됩니다.</p>
+        ) : (
+          <div className="space-y-1">
+            {subscribers.map(s => (
+              <div key={s.chatId} className="flex items-center justify-between text-[12px] py-1 px-2 rounded" style={{ background: "var(--bg)" }}>
+                <span style={{ color: "var(--text-primary)" }}>
+                  {s.firstName || "(이름 없음)"} {s.username && <span style={{ color: "var(--text-secondary)" }}>@{s.username}</span>}
+                  <span className="ml-2 font-mono text-[10px]" style={{ color: "var(--text-secondary)" }}>{s.chatId}</span>
+                </span>
+                <button onClick={() => deleteSubscriber(s.chatId)} className="text-[11px] text-red-500 hover:underline">삭제</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

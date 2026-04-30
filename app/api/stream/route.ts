@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 
 function toAbsoluteUrl(targetUrl: string, entry: string) {
@@ -32,10 +33,31 @@ async function fetchUpstream(url: string) {
  * 외부 스트리밍 서버가 직접 브라우저 접근을 차단하므로
  * 서버 사이드에서 fetch 후 클라이언트에 전달
  */
+const ALLOWED_UPSTREAM_HOSTS = [
+  "lux1.hudtv01.com",
+  "design.ultastream.com",
+  "streaming.tootoo24tv.com",
+];
+
+function isAllowedUpstream(targetUrl: string): boolean {
+  try {
+    const u = new URL(targetUrl);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+    return ALLOWED_UPSTREAM_HOSTS.some(
+      (h) => u.hostname === h || u.hostname.endsWith("." + h)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const targetUrl = req.nextUrl.searchParams.get("url");
   if (!targetUrl) {
     return new NextResponse("Missing url parameter", { status: 400 });
+  }
+  if (!isAllowedUpstream(targetUrl)) {
+    return new NextResponse("Upstream not allowed", { status: 400 });
   }
 
   const startedAt = Date.now();
@@ -90,7 +112,7 @@ export async function GET(req: NextRequest) {
               headers: {
                 "Content-Type": "application/vnd.apple.mpegurl",
                 "Cache-Control": "no-cache, no-store",
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": "https://livefelix.com",
                 "Access-Control-Allow-Methods": "GET",
               },
             });
@@ -117,7 +139,7 @@ export async function GET(req: NextRequest) {
         headers: {
           "Content-Type": "application/vnd.apple.mpegurl",
           "Cache-Control": "no-cache, no-store",
-          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Origin": "https://livefelix.com",
           "Access-Control-Allow-Methods": "GET",
         },
       });
@@ -136,7 +158,7 @@ export async function GET(req: NextRequest) {
       headers: {
         "Content-Type": contentType,
         "Cache-Control": "no-cache, no-store",
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": "https://livefelix.com",
       },
     });
   } catch {

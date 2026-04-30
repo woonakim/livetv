@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { clearCache } from "@/lib/cache-store";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getSession();
@@ -28,6 +29,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     },
   });
 
+  clearCache("popups");
   return NextResponse.json(popup);
 }
 
@@ -38,5 +40,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 
   await prisma.popup.delete({ where: { id: parseInt(params.id) } });
+  clearCache("popups");
   return NextResponse.json({ ok: true });
 }

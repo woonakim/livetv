@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
+import { lookupTeamLogo } from "@/lib/team-name";
 
 const SPORT_EMOJI: Record<string, string> = {
   soccer: "⚽", baseball: "⚾", basketball: "🏀",
@@ -22,10 +23,10 @@ interface LiveMatch {
 
 function TeamLogo({ name, logoMap, size = 16, enabled = true }: { name: string; logoMap: Record<string, string>; size?: number; enabled?: boolean }) {
   if (!enabled) return null;
-  const logo = logoMap[name];
+  const logo = lookupTeamLogo(logoMap, name);
   if (!logo) return null;
   /* eslint-disable-next-line @next/next/no-img-element */
-  return <img src={`${logo}?v=2`} alt={name} className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} />;
+  return <img src={`${logo}?v=3`} alt={name} className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} />;
 }
 
 export default function LiveGamesSection({ layout, startFrom = 0, maxCount, filter, title, initialCount, loadMoreCount = 10 }: { layout: "desktop" | "mobile"; startFrom?: number; maxCount?: number; filter?: "live" | "waiting"; title?: string; initialCount?: number; loadMoreCount?: number }) {

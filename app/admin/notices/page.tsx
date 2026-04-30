@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import RichEditor from "@/components/ui/RichEditor";
 
 interface Notice {
   id: number; title: string; content: string; author: string;
@@ -52,7 +53,7 @@ export default function AdminNoticesPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-bold text-gray-800">공지사항 관리 <span className="text-sm font-normal text-gray-400 ml-1">{notices.length}개</span></h1>
-        <button onClick={() => { setEditing({ title: "", content: "## 공지사항\n\n공지 내용을 작성해주세요.\n\n## 상세 내용\n\n- **항목 1**: 설명\n- **항목 2**: 설명", author: "라이브TV", isPinned: false }); setEditId(null); }} className="h-8 px-4 bg-gray-800 text-white text-[12px] font-bold rounded">새 공지 등록</button>
+        <button onClick={() => { setEditing({ title: "", content: "", author: "라이브TV", isPinned: false }); setEditId(null); }} className="h-8 px-4 bg-gray-800 text-white text-[12px] font-bold rounded">새 공지 등록</button>
       </div>
 
       {msg && <div className="mb-3 px-3 py-2 rounded text-[12px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{msg}</div>}
@@ -62,7 +63,7 @@ export default function AdminNoticesPage() {
           <h2 className="text-sm font-bold text-gray-700 mb-3">{editId ? "공지 수정" : "새 공지 등록"}</h2>
           <div className="space-y-3 text-[13px]">
             <div><label className="text-[11px] text-gray-500 block mb-1">제목 *</label><input value={(editing.title as string) || ""} onChange={e => setEditing({ ...editing, title: e.target.value })} className="w-full h-8 px-2 border border-gray-300 rounded text-[13px]" /></div>
-            <div><label className="text-[11px] text-gray-500 block mb-1">내용 *</label><textarea value={(editing.content as string) || ""} onChange={e => setEditing({ ...editing, content: e.target.value })} rows={8} className="w-full px-2 py-1.5 border border-gray-300 rounded text-[13px] resize-y" /></div>
+            <div><label className="text-[11px] text-gray-500 block mb-1">내용 *</label><RichEditor value={(editing.content as string) || ""} onChange={v => setEditing({ ...editing, content: v })} /></div>
             <div className="flex gap-4">
               <div><label className="text-[11px] text-gray-500 block mb-1">작성자</label><input value={(editing.author as string) || ""} onChange={e => setEditing({ ...editing, author: e.target.value })} className="w-40 h-8 px-2 border border-gray-300 rounded text-[13px]" /></div>
               <label className="flex items-center gap-2 self-end h-8 text-[13px]"><input type="checkbox" checked={!!editing.isPinned} onChange={e => setEditing({ ...editing, isPinned: e.target.checked })} /> 상단 고정</label>

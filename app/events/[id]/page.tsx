@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
+import MetaHead from "@/components/ui/MetaHead";
 import { useParams } from "next/navigation";
 
 interface EventDetail {
@@ -106,6 +107,7 @@ export default function EventDetailPage() {
 
   return (
     <div className="flex flex-col w-full">
+      <MetaHead title={event.title} description={`${event.teamA} vs ${event.teamB} - ${event.reward}`} image={event.bannerImg || undefined} />
       {/* Title Header */}
       <div className="mx-2 mt-2">
         <header className="p-3 rounded-t-lg" style={{ background: "var(--surface)", borderBottom: "0" }}>
@@ -141,10 +143,12 @@ export default function EventDetailPage() {
         )}
 
         {/* Content */}
-        <div className="px-1 py-4 leading-relaxed text-base space-y-0.5" style={{ color: "var(--text-primary)" }}>
-          {event.content.split("\n").map((line, i) => (
-            <p key={i}>{line || "\u00A0"}</p>
-          ))}
+        <div className="px-1 py-4 leading-relaxed text-base" style={{ color: "var(--text-primary)" }}>
+          {event.content.includes("<") ? (
+            <div className="prose-content" dangerouslySetInnerHTML={{ __html: event.content }} />
+          ) : (
+            <div className="space-y-0.5">{event.content.split("\n").map((line, i) => (<p key={i}>{line || "\u00A0"}</p>))}</div>
+          )}
         </div>
 
         {/* Bottom Image */}

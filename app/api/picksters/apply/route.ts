@@ -30,5 +30,8 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (typeof (globalThis as any).__adminNotify === "function") (globalThis as any).__adminNotify("pickster_apply", { nickname: session.nickname });
+
   return NextResponse.json({ ok: true }, { status: 201 });
 }

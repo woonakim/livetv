@@ -51,7 +51,7 @@ async function main() {
       logoPath = `/team-logos/${filename}`;
     }
     await prisma.teamLogo.upsert({
-      where: { nameKr: t.nameKr },
+      where: { nameKr_sport: { nameKr: t.nameKr, sport: t.sport } },
       create: { nameKr: t.nameKr, nameEn: t.nameEn, sport: t.sport, league: t.league, logoPath },
       update: { nameEn: t.nameEn, logoPath, sport: t.sport, league: t.league },
     });

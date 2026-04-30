@@ -1,13 +1,21 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signToken, COOKIE_NAME } from "@/lib/auth";
 import { grantReward } from "@/lib/reward";
+import { registerLimiter } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+    const { ok } = registerLimiter.check(ip);
+    if (!ok) {
+      return NextResponse.json({ error: "회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해주세요." }, { status: 429 });
+    }
+
     const body = await req.json();
-    const { password, passwordConfirm, nickname, name, phone, email, referredBy } = body;
+    const { password, passwordConfirm, nickname, name, phone, email, birthDate, referredBy } = body;
     const username = (body.username ?? "").toLowerCase();
 
     // 기본 필드 검증
@@ -39,6 +47,15 @@ export async function POST(req: NextRequest) {
       if (setting.requireEmail && !email) {
         return NextResponse.json({ error: "이메일을 입력해주세요." }, { status: 400 });
       }
+      if (setting.requireBirthDate && !birthDate) {
+        return NextResponse.json({ error: "생년월일을 입력해주세요." }, { status: 400 });
+      }
+    }
+    let birthDateValue: Date | null = null;
+    if (birthDate) {
+      const d = new Date(birthDate);
+      if (isNaN(d.getTime())) return NextResponse.json({ error: "생년월일 형식이 올바르지 않습니다." }, { status: 400 });
+      birthDateValue = d;
     }
 
     // 중복 확인
@@ -69,6 +86,7 @@ export async function POST(req: NextRequest) {
         name: name || null,
         phone: phone || null,
         email: email || null,
+        birthDate: birthDateValue,
         referredBy: referredBy || null,
       },
     });
@@ -87,7 +105,13 @@ export async function POST(req: NextRequest) {
     // JWT 발급 → 쿠키 저장
     const token = signToken({ id: user.id, username: user.username, nickname: user.nickname, role: user.role });
     const res = NextResponse.json({ ok: true, nickname: user.nickname });
-    res.cookies.set(COOKIE_NAME, token, { httpOnly: true, path: "/", maxAge: 60 * 60 * 24 * 7 });
+    res.cookies.set(COOKIE_NAME, token, {
+      httpOnly: true,
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
     return res;
   } catch {
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

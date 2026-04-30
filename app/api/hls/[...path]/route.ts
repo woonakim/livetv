@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 
 const SRS_HOST = "http://localhost:8080";
@@ -28,7 +29,7 @@ export async function GET(
         headers: {
           "Content-Type": "application/vnd.apple.mpegurl",
           "Cache-Control": "no-cache, no-store",
-          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Origin": "https://livefelix.com",
         },
       });
     }
@@ -39,7 +40,7 @@ export async function GET(
       headers: {
         "Content-Type": contentType,
         "Cache-Control": "no-cache, no-store",
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": "https://livefelix.com",
       },
     });
   } catch {

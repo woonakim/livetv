@@ -18,7 +18,7 @@ interface Exchange { id: number; productName: string; amount: number; status: st
 interface UserDetail {
   id: number; username: string; nickname: string; role: string;
   points: number; exp: number; isActive: boolean;
-  name: string | null; phone: string | null; email: string | null; referredBy: string | null;
+  name: string | null; phone: string | null; phoneVerified: boolean; email: string | null; referredBy: string | null;
   createdAt: string; updatedAt: string;
   pointLogs: PointLog[];
   pointExchanges: Exchange[];
@@ -38,6 +38,9 @@ export default function AdminUserDetailPage() {
   const [isActive, setIsActive] = useState(true);
   const [pointAmount, setPointAmount] = useState("");
   const [pointReason, setPointReason] = useState("");
+  const [expAmount, setExpAmount] = useState("");
+  const [expReason, setExpReason] = useState("");
+  const [nickname, setNickname] = useState("");
 
   useEffect(() => {
     fetch(`/api/admin/users/${id}`).then(r => r.json()).then(d => {
@@ -45,6 +48,7 @@ export default function AdminUserDetailPage() {
       setUser(d);
       setRole(d.role);
       setIsActive(d.isActive);
+      setNickname(d.nickname);
     });
   }, [id, router]);
 
@@ -64,6 +68,7 @@ export default function AdminUserDetailPage() {
       setUser(fresh);
       setRole(fresh.role);
       setIsActive(fresh.isActive);
+      setNickname(fresh.nickname);
     } else {
       setMsg(result.error || "오류가 발생했습니다.");
     }
@@ -83,6 +88,17 @@ export default function AdminUserDetailPage() {
     save({ pointAdjust: { amount, reason: pointReason || "관리자 수동 조정" } });
     setPointAmount("");
     setPointReason("");
+  };
+  const handleExpAdjust = () => {
+    const amount = parseInt(expAmount);
+    if (!amount || isNaN(amount)) return;
+    save({ expAdjust: { amount, reason: expReason || "관리자 수동 조정" } });
+    setExpAmount("");
+    setExpReason("");
+  };
+  const handleNicknameSave = () => {
+    if (!nickname.trim() || nickname === user?.nickname) return;
+    save({ nickname: nickname.trim() });
   };
 
   const formatDate = (d: string) => new Date(d).toLocaleString("ko-KR");
@@ -105,9 +121,23 @@ export default function AdminUserDetailPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-[13px]">
           <div><span className="text-gray-500">ID</span><p className="font-semibold text-gray-800">{user.id}</p></div>
           <div><span className="text-gray-500">아이디</span><p className="font-semibold text-gray-800">{user.username}</p></div>
-          <div><span className="text-gray-500">닉네임</span><p className="font-semibold text-gray-800">{user.nickname}</p></div>
+          <div>
+            <span className="text-gray-500">닉네임</span>
+            <div className="flex gap-1 mt-0.5">
+              <input value={nickname} onChange={e => setNickname(e.target.value)} className="h-7 w-28 px-2 text-[13px] font-semibold border border-gray-300 rounded" />
+              <button onClick={handleNicknameSave} disabled={saving || nickname === user.nickname} className="h-7 px-2 bg-gray-800 text-white text-[11px] font-bold rounded disabled:opacity-40">변경</button>
+            </div>
+          </div>
           <div><span className="text-gray-500">이름</span><p className="font-semibold text-gray-800">{user.name || "-"}</p></div>
-          <div><span className="text-gray-500">전화번호</span><p className="font-semibold text-gray-800">{user.phone || "-"}</p></div>
+          <div>
+            <span className="text-gray-500">전화번호</span>
+            <div className="flex items-center gap-1.5">
+              <p className="font-semibold text-gray-800">{user.phone || "-"}</p>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${user.phoneVerified ? "bg-green-100 text-green-700" : "bg-red-100 text-red-500"}`}>
+                {user.phoneVerified ? "인증완료" : "미인증"}
+              </span>
+            </div>
+          </div>
           <div><span className="text-gray-500">이메일</span><p className="font-semibold text-gray-800">{user.email || "-"}</p></div>
           <div><span className="text-gray-500">추천인</span><p className="font-semibold text-gray-800">{user.referredBy || "-"}</p></div>
           <div><span className="text-gray-500">가입일</span><p className="font-semibold text-gray-800">{formatDate(user.createdAt)}</p></div>
@@ -164,6 +194,17 @@ export default function AdminUserDetailPage() {
             <input value={pointReason} onChange={e => setPointReason(e.target.value)} placeholder="사유 입력" className="h-8 w-48 px-2 text-[13px] border border-gray-300 rounded" />
           </div>
           <button onClick={handlePointAdjust} disabled={saving || !pointAmount} className="h-8 px-3 bg-blue-600 text-white text-[12px] font-bold rounded disabled:opacity-40">적용</button>
+        </div>
+        <div className="flex flex-wrap items-end gap-2 mt-3 pt-3 border-t border-gray-100">
+          <div>
+            <label className="text-[11px] text-gray-500 block mb-1">경험치 조정 (음수 가능)</label>
+            <input type="number" value={expAmount} onChange={e => setExpAmount(e.target.value)} placeholder="예: 500 또는 -100" className="h-8 w-36 px-2 text-[13px] border border-gray-300 rounded" />
+          </div>
+          <div>
+            <label className="text-[11px] text-gray-500 block mb-1">사유</label>
+            <input value={expReason} onChange={e => setExpReason(e.target.value)} placeholder="사유 입력" className="h-8 w-48 px-2 text-[13px] border border-gray-300 rounded" />
+          </div>
+          <button onClick={handleExpAdjust} disabled={saving || !expAmount} className="h-8 px-3 bg-purple-600 text-white text-[12px] font-bold rounded disabled:opacity-40">적용</button>
         </div>
       </div>
 

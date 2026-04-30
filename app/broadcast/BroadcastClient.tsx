@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SPORT_CATEGORIES } from "@/lib/constants";
-import type { SportsLiveMatch } from "@/lib/sports-live";
+import { parseGalaxyResponse, SPORTS_LIVE_API_URL, type SportsLiveMatch } from "@/lib/sports-live";
+import { lookupTeamLogo } from "@/lib/team-name";
 
 const SPORT_EMOJI: Record<string, string> = {
   soccer: "⚽",
@@ -15,29 +16,29 @@ const SPORT_EMOJI: Record<string, string> = {
   lol: "🏆",
 };
 
-function TeamLogo({ name, logoMap, size = 18, enabled = true }: { name: string; logoMap: Record<string, string>; size?: number; enabled?: boolean }) {
+function TeamLogo({ name, sport, logoMap, size = 18, enabled = true }: { name: string; sport?: string; logoMap: Record<string, string>; size?: number; enabled?: boolean }) {
   if (!enabled) return null;
-  const logo = logoMap[name];
+  const logo = lookupTeamLogo(logoMap, name, sport);
   if (!logo) return null;
   /* eslint-disable-next-line @next/next/no-img-element */
   return <img src={`${logo}?v=2`} alt={name} className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} />;
 }
 
-function MatchLabel({ home, away, logoMap, className, style, logoEnabled = true }: { home: string; away: string; logoMap: Record<string, string>; className?: string; style?: React.CSSProperties; logoEnabled?: boolean }) {
+function MatchLabel({ home, away, sport, logoMap, className, style, logoEnabled = true }: { home: string; away: string; sport?: string; logoMap: Record<string, string>; className?: string; style?: React.CSSProperties; logoEnabled?: boolean }) {
   if (!away) {
     return (
       <span className={`flex items-center gap-1 ${className ?? ""}`} style={style}>
-        <TeamLogo name={home} logoMap={logoMap} enabled={logoEnabled} />
+        <TeamLogo name={home} sport={sport} logoMap={logoMap} enabled={logoEnabled} />
         <span className="truncate">{home}</span>
       </span>
     );
   }
   return (
     <span className={`flex items-center gap-1 ${className ?? ""}`} style={style}>
-      <TeamLogo name={home} logoMap={logoMap} enabled={logoEnabled} />
+      <TeamLogo name={home} sport={sport} logoMap={logoMap} enabled={logoEnabled} />
       <span className="truncate">{home}</span>
       <span className="opacity-60 mx-0.5">vs</span>
-      <TeamLogo name={away} logoMap={logoMap} enabled={logoEnabled} />
+      <TeamLogo name={away} sport={sport} logoMap={logoMap} enabled={logoEnabled} />
       <span className="truncate">{away}</span>
     </span>
   );
@@ -145,14 +146,23 @@ export default function BroadcastClient({
   }, [waitingGames.length]);
 
   const fetchGames = useCallback(async () => {
+    const sportParam = selectedSport === "all" ? "" : selectedSport;
     try {
-      const sportParam = selectedSport === "all" ? "" : selectedSport;
-      const res = await fetch(`/api/sports-live?sport=${sportParam}`);
+      const res = await fetch(`/api/sports-live?sport=${sportParam}`, { cache: "no-store" });
       const data = await res.json();
       setLiveGames(data.live || []);
       setWaitingGames(data.waiting || []);
     } catch {
-      // ignore
+      // 서버 fetch가 실패하면 브라우저에서 직접 galaxy-stream 시도 (폴백)
+      try {
+        const res = await fetch(SPORTS_LIVE_API_URL, { cache: "no-store" });
+        const json = await res.json();
+        const data = parseGalaxyResponse(json, sportParam);
+        setLiveGames(data.live || []);
+        setWaitingGames(data.waiting || []);
+      } catch {
+        // ignore
+      }
     } finally {
       setLoading(false);
     }
@@ -412,7 +422,7 @@ export default function BroadcastClient({
                   <ThumbBox src={game.thumbnail} fallback={SPORT_EMOJI[game.sport] ?? "🏅"} className="w-[68px] h-[39px]" />
                   <div className="text-[11px] font-bold text-center truncate" style={{ color: "var(--text-primary)" }}>{game.league}</div>
                   <div className="text-[12px] font-bold text-center" style={{ color: "var(--brand)" }}>{game.date} {game.time}</div>
-                  <MatchLabel home={game.home} away={game.away} logoMap={logoMap} logoEnabled={logoEnabled} className="text-[13px] font-bold truncate px-2" style={{ color: "var(--text-primary)" }} />
+                  <MatchLabel home={game.home} away={game.away} sport={game.sport} logoMap={logoMap} logoEnabled={logoEnabled} className="text-[13px] font-bold truncate px-2" style={{ color: "var(--text-primary)" }} />
                   <div className="flex items-center justify-end gap-1 pr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     {isPlaying
                       ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-white whitespace-nowrap" style={{ background: "#16a34a" }}>● 재생중</span>
@@ -429,7 +439,7 @@ export default function BroadcastClient({
                       <span className="text-[11px] font-bold" style={{ color: "var(--brand)" }}>{game.league}</span>
                       <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{game.time}</span>
                     </div>
-                    <MatchLabel home={game.home} away={game.away} logoMap={logoMap} logoEnabled={logoEnabled} className="text-[12px] font-bold truncate" style={{ color: "var(--text-primary)" }} />
+                    <MatchLabel home={game.home} away={game.away} sport={game.sport} logoMap={logoMap} logoEnabled={logoEnabled} className="text-[12px] font-bold truncate" style={{ color: "var(--text-primary)" }} />
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     {isPlaying
@@ -481,7 +491,7 @@ export default function BroadcastClient({
                 </div>
                 <div className="text-[11px] font-bold text-center truncate" style={{ color: "var(--text-primary)" }}>{game.league}</div>
                 <div className="text-[12px] font-bold text-center" style={{ color: "var(--text-secondary)" }}>{game.date} {game.time}</div>
-                <MatchLabel home={game.home} away={game.away} logoMap={logoMap} logoEnabled={logoEnabled} className="text-[13px] font-bold truncate px-2" style={{ color: "var(--text-primary)" }} />
+                <MatchLabel home={game.home} away={game.away} sport={game.sport} logoMap={logoMap} logoEnabled={logoEnabled} className="text-[13px] font-bold truncate px-2" style={{ color: "var(--text-primary)" }} />
                 <div className="flex items-center justify-end pr-2">
                   <span className="px-2 py-0.5 text-[11px] text-white rounded font-semibold" style={{ background: "#919191" }}>대기중</span>
                 </div>
@@ -495,7 +505,7 @@ export default function BroadcastClient({
                     <span className="text-[11px] font-bold" style={{ color: "var(--text-secondary)" }}>{game.league}</span>
                     <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{game.time}</span>
                   </div>
-                  <MatchLabel home={game.home} away={game.away} logoMap={logoMap} logoEnabled={logoEnabled} className="text-[12px] font-bold truncate" style={{ color: "var(--text-primary)" }} />
+                  <MatchLabel home={game.home} away={game.away} sport={game.sport} logoMap={logoMap} logoEnabled={logoEnabled} className="text-[12px] font-bold truncate" style={{ color: "var(--text-primary)" }} />
                 </div>
                 <div className="shrink-0">
                   <span className="px-2 py-1 text-[11px] text-white rounded font-semibold" style={{ background: "#919191" }}>대기중</span>

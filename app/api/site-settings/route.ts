@@ -6,8 +6,12 @@ import { NextResponse } from "next/server";
 
 // GET: 공개 설정 조회 (API 키는 제외)
 export async function GET() {
-  const settings = await prisma.siteSetting.findUnique({ where: { id: 1 } });
-  if (!settings) return NextResponse.json({ showLogoBroadcast: true, showLogoMain: true, showLogoAnalysis: true, showLogoYoutube: true, anthropicEnabled: false, openaiEnabled: false, geminiEnabled: false });
+  // upsert로 row가 항상 존재하도록 보장 (서버/클라 fallback 불일치 방지)
+  const settings = await prisma.siteSetting.upsert({
+    where: { id: 1 },
+    create: { id: 1 },
+    update: {},
+  });
   return NextResponse.json({
     showLogoBroadcast: settings.showLogoBroadcast,
     showLogoMain: settings.showLogoMain,
@@ -17,5 +21,13 @@ export async function GET() {
     openaiEnabled: settings.openaiEnabled,
     geminiEnabled: settings.geminiEnabled,
     levelDisplayMode: settings.levelDisplayMode,
+    noticeTicker: settings.noticeTicker,
+    adminAlarmSound: settings.adminAlarmSound,
+    // 가입 시 수집 / 분석글 / 교환 락업 (공개)
+    collectBirthDateOnSignup: settings.collectBirthDateOnSignup,
+    collectPhoneOnSignup: settings.collectPhoneOnSignup,
+    allowUserAnalysis: settings.allowUserAnalysis,
+    exchangeMinLevel: settings.exchangeMinLevel,
+    exchangeLockEnabled: settings.exchangeLockEnabled,
   });
 }

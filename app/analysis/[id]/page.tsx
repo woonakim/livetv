@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import TeamLogo from "@/components/ui/TeamLogo";
+import MetaHead from "@/components/ui/MetaHead";
 
 const SPORT_EMOJI: Record<string, string> = {
   soccer: "⚽", baseball: "⚾", basketball: "🏀",
@@ -145,6 +146,7 @@ export default function AnalysisDetailPage() {
 
   return (
     <div className="flex flex-col gap-3 p-2">
+      {post && <MetaHead title={post.title} description={post.content?.replace(/<[^>]*>/g, "").slice(0, 150)} />}
       <Link href="/analysis" className="flex items-center gap-1 text-xs font-bold w-fit" style={{ color: "var(--text-secondary)" }}>
         <i className="fas fa-chevron-left text-[10px]" /> 스포츠 분석 목록
       </Link>

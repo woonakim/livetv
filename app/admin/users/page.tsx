@@ -11,6 +11,9 @@ interface User {
   points: number;
   exp: number;
   isActive: boolean;
+  phone: string | null;
+  phoneVerified: boolean;
+  referredBy: string | null;
   createdAt: string;
   _count: { chatMessages: number; pointExchanges: number };
 }
@@ -31,18 +34,20 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   const fetchUsers = useCallback(() => {
     const params = new URLSearchParams();
     params.set("page", String(page));
     if (search) params.set("search", search);
     if (roleFilter) params.set("role", roleFilter);
+    if (verifiedOnly) params.set("verifiedOnly", "1");
     fetch(`/api/admin/users?${params}`).then(r => r.json()).then(d => {
       setUsers(d.users || []);
       setTotal(d.total || 0);
       setTotalPages(d.totalPages || 1);
     });
-  }, [page, search, roleFilter]);
+  }, [page, search, roleFilter, verifiedOnly]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
@@ -81,6 +86,10 @@ export default function AdminUsersPage() {
         >
           {ROLES.map(r => <option key={r} value={r}>{r ? ROLE_LABEL[r] : "전체 등급"}</option>)}
         </select>
+        <label className="flex items-center gap-1.5 cursor-pointer text-[12px] font-bold text-gray-700 ml-1 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-50">
+          <input type="checkbox" checked={verifiedOnly} onChange={e => { setVerifiedOnly(e.target.checked); setPage(1); }} className="cursor-pointer" />
+          인증회원만 보기
+        </label>
       </div>
 
       {/* 테이블 */}
@@ -92,8 +101,10 @@ export default function AdminUsersPage() {
               <th className="px-3 py-2.5 text-left font-semibold">아이디</th>
               <th className="px-3 py-2.5 text-left font-semibold">닉네임</th>
               <th className="px-3 py-2.5 text-center font-semibold">등급</th>
+              <th className="px-3 py-2.5 text-left font-semibold">전화번호</th>
               <th className="px-3 py-2.5 text-right font-semibold">포인트</th>
               <th className="px-3 py-2.5 text-right font-semibold">경험치</th>
+              <th className="px-3 py-2.5 text-left font-semibold">추천인</th>
               <th className="px-3 py-2.5 text-center font-semibold">상태</th>
               <th className="px-3 py-2.5 text-center font-semibold">가입일</th>
               <th className="px-3 py-2.5 text-center font-semibold">관리</th>
@@ -110,8 +121,15 @@ export default function AdminUsersPage() {
                     {ROLE_LABEL[u.role] || u.role}
                   </span>
                 </td>
+                <td className="px-3 py-2 text-gray-500 text-[12px]">
+                  <div className="flex items-center gap-1">
+                    <span>{u.phone || "-"}</span>
+                    {u.phoneVerified && <i className="fas fa-check-circle text-green-500 text-[10px]" title="인증완료" />}
+                  </div>
+                </td>
                 <td className="px-3 py-2 text-right font-mono text-gray-700">{u.points.toLocaleString()}</td>
                 <td className="px-3 py-2 text-right font-mono text-gray-500">{u.exp.toLocaleString()}</td>
+                <td className="px-3 py-2 text-gray-500 text-[12px]">{u.referredBy || "-"}</td>
                 <td className="px-3 py-2 text-center">
                   <span className={`text-[11px] font-bold ${u.isActive ? "text-green-600" : "text-red-500"}`}>
                     {u.isActive ? "활성" : "비활성"}
@@ -124,7 +142,7 @@ export default function AdminUsersPage() {
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={9} className="py-8 text-center text-gray-400">검색 결과가 없습니다.</td></tr>
+              <tr><td colSpan={11} className="py-8 text-center text-gray-400">검색 결과가 없습니다.</td></tr>
             )}
           </tbody>
         </table>

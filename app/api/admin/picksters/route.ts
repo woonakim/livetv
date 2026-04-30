@@ -61,3 +61,29 @@ export async function PATCH(req: NextRequest) {
   await prisma.picksterProfile.update({ where: { id }, data });
   return NextResponse.json({ ok: true });
 }
+
+// DELETE: 픽스터 프로필 삭제 (거절/취소/삭제 공용)
+// 옵션: ?demote=1 → 유저 role이 PICKSTER면 USER로 강등 (관리자 강등 안 함)
+export async function DELETE(req: NextRequest) {
+  const session = await getSession();
+  if (!session || !["ADMIN", "SUPERADMIN"].includes(session.role)) {
+    return NextResponse.json({ error: "권한 없음" }, { status: 403 });
+  }
+  const id = parseInt(req.nextUrl.searchParams.get("id") || "0");
+  const demote = req.nextUrl.searchParams.get("demote") === "1";
+  if (!id) return NextResponse.json({ error: "ID 필요" }, { status: 400 });
+
+  const profile = await prisma.picksterProfile.findUnique({ where: { id } });
+  if (!profile) return NextResponse.json({ error: "픽스터 프로필을 찾을 수 없습니다." }, { status: 404 });
+
+  await prisma.picksterProfile.delete({ where: { id } });
+
+  if (demote) {
+    await prisma.user.updateMany({
+      where: { id: profile.userId, role: "PICKSTER" },
+      data: { role: "USER" },
+    });
+  }
+
+  return NextResponse.json({ ok: true });
+}

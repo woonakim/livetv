@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import type { YouTubeVideo } from "@/lib/youtube";
+import { lookupTeamLogo } from "@/lib/team-name";
 
-function SmallTeamLogo({ name, logoMap, enabled }: { name: string; logoMap: Record<string, string>; enabled: boolean }) {
+function SmallTeamLogo({ name, sport, logoMap, enabled }: { name: string; sport?: string; logoMap: Record<string, string>; enabled: boolean }) {
   if (!enabled) return null;
-  const logo = logoMap[name];
+  const logo = lookupTeamLogo(logoMap, name, sport);
   if (!logo) return null;
   /* eslint-disable-next-line @next/next/no-img-element */
-  return <img src={`${logo}?v=2`} alt={name} className="w-4 h-4 rounded-full object-cover shrink-0" />;
+  return <img src={`${logo}?v=3`} alt={name} className="w-4 h-4 rounded-full object-cover shrink-0" />;
 }
 
 interface Props {
@@ -58,12 +59,12 @@ export default function HighlightsSection({ videos, layout }: Props) {
                   <div className="space-y-0.5 mb-0.5">
                     <div className="flex items-center gap-1">
                       <span className="text-[10px] font-bold px-1 rounded" style={{ background: "var(--brand)", color: "#fff" }}>H</span>
-                      <SmallTeamLogo name={video.homeTeam} logoMap={logoMap} enabled={logoEnabled} />
+                      <SmallTeamLogo name={video.homeTeam} sport={video.category} logoMap={logoMap} enabled={logoEnabled} />
                       <p className="text-[12px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{video.homeTeam}</p>
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="text-[10px] font-bold px-1 rounded" style={{ background: "var(--text-secondary)", color: "#fff" }}>A</span>
-                      <SmallTeamLogo name={video.awayTeam} logoMap={logoMap} enabled={logoEnabled} />
+                      <SmallTeamLogo name={video.awayTeam} sport={video.category} logoMap={logoMap} enabled={logoEnabled} />
                       <p className="text-[12px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{video.awayTeam}</p>
                     </div>
                   </div>

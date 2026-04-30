@@ -1,0 +1,7 @@
+ALTER TABLE "SiteSetting" ADD COLUMN IF NOT EXISTS "telegramSubscribePasscode" TEXT NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS "TelegramSubscriber" (
+  "chatId" TEXT PRIMARY KEY,
+  "username" TEXT NOT NULL DEFAULT '',
+  "firstName" TEXT NOT NULL DEFAULT '',
+  "subscribedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

@@ -14,15 +14,32 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const category = (formData.get("category") as string) || "general";
+    const category = (formData.get("category") as string) || "";
+
+    // category 화이트리스트 (path traversal 방지)
+    const ALLOWED_CATEGORIES = ["bj-avatar", "editor", "partners", "popups", "products", "seo", "banners", "events", "badges"];
+    if (!ALLOWED_CATEGORIES.includes(category)) {
+      return NextResponse.json({ error: "허용되지 않는 카테고리입니다." }, { status: 400 });
+    }
 
     if (!file) return NextResponse.json({ error: "파일 필요" }, { status: 400 });
     if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: "10MB 이하만 업로드 가능" }, { status: 400 });
 
+    // 확장자 검증 (SVG 제거 — XSS 방지)
+    const ALLOWED_EXTS = ["jpg", "jpeg", "png", "gif", "webp", "ico"];
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!ALLOWED_EXTS.includes(ext)) {
+      return NextResponse.json({ error: `허용되지 않는 파일 형식입니다. (${ALLOWED_EXTS.join(", ")})` }, { status: 400 });
+    }
+
+    // MIME 타입 검증
+    const ALLOWED_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/x-icon", "image/vnd.microsoft.icon"];
+    if (!ALLOWED_MIMES.includes(file.type)) {
+      return NextResponse.json({ error: "허용되지 않는 파일 타입입니다." }, { status: 400 });
+    }
+
     const dir = path.join(process.cwd(), "public", "uploads", category);
     await mkdir(dir, { recursive: true });
-
-    const ext = file.name.split(".").pop()?.toLowerCase() || "png";
     const filename = `${category}_${Date.now()}.${ext}`;
     const savePath = path.join(dir, filename);
 

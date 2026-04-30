@@ -24,5 +24,12 @@ export async function POST() {
     },
   });
 
+  // 관리자 알림
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (typeof (globalThis as any).__adminNotify === "function") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__adminNotify("bj_apply", { nickname: session.nickname });
+  }
+
   return NextResponse.json({ ok: true }, { status: 201 });
 }

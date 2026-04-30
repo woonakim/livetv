@@ -30,7 +30,7 @@ export default function AdminDashboard() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-black" style={{ color: "var(--text-primary)" }}>대시보드</h1>
-        <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>{new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}</span>
+        <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>{new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long", timeZone: "Asia/Seoul" })}</span>
       </div>
 
       {/* ── 오늘 접속 현황 ── */}
@@ -63,14 +63,14 @@ export default function AdminDashboard() {
       {/* ── 주요 지표 카드 ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "오늘 신규가입", value: stats.todayUsers, icon: "👤", href: "/admin/users", color: "#3b82f6", sub: `전체 ${stats.totalUsers.toLocaleString()}명` },
-          { label: "오늘 출석체크", value: stats.todayAttendance, icon: "📅", href: "/admin/attendance", color: "#10b981", sub: "출석 현황" },
-          { label: "오늘 채팅", value: stats.todayMessages, icon: "💬", href: "/admin/chat", color: "#8b5cf6", sub: `누적 ${stats.totalMessages.toLocaleString()}건` },
-          { label: "교환 대기", value: stats.pendingExchanges, icon: "🔄", href: "/admin/exchanges", color: stats.pendingExchanges > 0 ? "#ef4444" : "#6b7280", sub: "처리 필요" },
+          { label: "오늘 신규가입", value: stats.todayUsers, icon: "fas fa-user-plus", href: "/admin/users", color: "#3b82f6", sub: `전체 ${stats.totalUsers.toLocaleString()}명` },
+          { label: "오늘 출석체크", value: stats.todayAttendance, icon: "fas fa-calendar-check", href: "/admin/attendance", color: "#10b981", sub: "출석 현황" },
+          { label: "오늘 채팅", value: stats.todayMessages, icon: "fas fa-comments", href: "/admin/chat", color: "#8b5cf6", sub: `누적 ${stats.totalMessages.toLocaleString()}건` },
+          { label: "교환 대기", value: stats.pendingExchanges, icon: "fas fa-exchange-alt", href: "/admin/exchanges", color: stats.pendingExchanges > 0 ? "#ef4444" : "#6b7280", sub: "처리 필요" },
         ].map(c => (
           <Link key={c.label} href={c.href} className="rounded-lg p-4 transition-shadow hover:shadow-md" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xl">{c.icon}</span>
+              <i className={`${c.icon} text-lg`} style={{ color: c.color }} />
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${c.color}15`, color: c.color }}>{c.sub}</span>
             </div>
             <p className="text-2xl font-black" style={{ color: c.color }}>{c.value.toLocaleString()}</p>
@@ -82,7 +82,7 @@ export default function AdminDashboard() {
       {/* ── 7일 접속 추이 + 사이트 현황 ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-lg p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}>📊 7일 접속 추이 (고유 IP)</h2>
+          <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}><i className="fas fa-chart-bar mr-1.5" style={{ color: "var(--brand)" }} />7일 접속 추이 (고유 IP)</h2>
           <div className="flex items-end gap-1 h-[120px]">
             {stats.weeklyVisits.map((v, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -95,7 +95,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="rounded-lg p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}>🏠 사이트 현황</h2>
+          <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}><i className="fas fa-home mr-1.5" style={{ color: "var(--brand)" }} />사이트 현황</h2>
           <div className="space-y-2">
             {[
               { label: "전체 회원", value: stats.totalUsers, color: "#3b82f6" },
@@ -122,24 +122,24 @@ export default function AdminDashboard() {
 
       {/* ── 빠른 메뉴 ── */}
       <div className="rounded-lg p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-        <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}>⚡ 빠른 메뉴</h2>
+        <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}><i className="fas fa-bolt mr-1.5" style={{ color: "var(--brand)" }} />빠른 메뉴</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {[
-            { label: "회원 관리", href: "/admin/users", icon: "👤" },
-            { label: "제휴업체 관리", href: "/admin/partners", icon: "🤝" },
-            { label: "이벤트매치", href: "/admin/events", icon: "🎯" },
-            { label: "공지사항", href: "/admin/notices", icon: "📢" },
-            { label: "포인트 교환", href: "/admin/exchanges", icon: "💰" },
-            { label: "활동 보상 설정", href: "/admin/rewards", icon: "⭐" },
-            { label: "접속 기록", href: "/admin/access-logs", icon: "📊" },
-            { label: "픽스터 관리", href: "/admin/picksters", icon: "🏆" },
-            { label: "채팅 관리", href: "/admin/chat", icon: "💬" },
-            { label: "포인트 내역", href: "/admin/point-logs", icon: "📋" },
-            { label: "포인트 상품", href: "/admin/products", icon: "🎁" },
-            { label: "사이트 설정", href: "/admin/settings", icon: "⚙️" },
+            { label: "회원 관리", href: "/admin/users", icon: "fas fa-users" },
+            { label: "제휴업체 관리", href: "/admin/partners", icon: "fas fa-handshake" },
+            { label: "이벤트매치", href: "/admin/events", icon: "fas fa-trophy" },
+            { label: "공지사항", href: "/admin/notices", icon: "fas fa-bullhorn" },
+            { label: "포인트 교환", href: "/admin/exchanges", icon: "fas fa-exchange-alt" },
+            { label: "활동 보상 설정", href: "/admin/rewards", icon: "fas fa-star" },
+            { label: "접속 기록", href: "/admin/access-logs", icon: "fas fa-chart-line" },
+            { label: "픽스터 관리", href: "/admin/picksters", icon: "fas fa-user-check" },
+            { label: "채팅 관리", href: "/admin/chat", icon: "fas fa-comments" },
+            { label: "포인트 내역", href: "/admin/point-logs", icon: "fas fa-history" },
+            { label: "포인트 상품", href: "/admin/products", icon: "fas fa-box" },
+            { label: "사이트 설정", href: "/admin/settings", icon: "fas fa-cog" },
           ].map(m => (
             <Link key={m.href} href={m.href} className="flex items-center gap-2 px-3 py-2.5 rounded-lg transition-colors hover:opacity-80" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
-              <span className="text-lg">{m.icon}</span>
+              <i className={`${m.icon} text-sm w-5 text-center`} style={{ color: "var(--brand)" }} />
               <span className="text-[12px] font-bold" style={{ color: "var(--text-primary)" }}>{m.label}</span>
             </Link>
           ))}

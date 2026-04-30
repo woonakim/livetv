@@ -111,6 +111,18 @@ export default function AdminBjPage() {
     fetchData();
   };
 
+  const handleReject = async (id: number, nickname: string) => {
+    if (!confirm(`"${nickname}" BJ 신청을 거절하시겠습니까?\n프로필이 완전히 삭제됩니다.`)) return;
+    await fetch(`/api/admin/bj?id=${id}`, { method: "DELETE" });
+    fetchData();
+  };
+
+  const handleDelete = async (id: number, nickname: string) => {
+    if (!confirm(`"${nickname}" BJ를 삭제하시겠습니까?\n프로필 + BJ 권한(role)이 함께 제거됩니다.`)) return;
+    await fetch(`/api/admin/bj?id=${id}&demote=1`, { method: "DELETE" });
+    fetchData();
+  };
+
   const pending = bjs.filter(b => !b.isApproved);
   const approved = bjs.filter(b => b.isApproved);
 
@@ -139,7 +151,7 @@ export default function AdminBjPage() {
                 </div>
                 <div className="flex gap-1.5">
                   <button onClick={() => handleAction(b.id, { isApproved: true })} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: "#16a34a" }}>승인</button>
-                  <button onClick={() => handleAction(b.id, { isActive: false })} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: "#dc2626" }}>거절</button>
+                  <button onClick={() => handleReject(b.id, b.nickname)} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: "#dc2626" }}>거절</button>
                 </div>
               </div>
             ))}
@@ -190,6 +202,9 @@ export default function AdminBjPage() {
                         </button>
                         <button onClick={() => { if (confirm("스트림키를 재발급하시겠습니까?")) handleAction(b.id, { regenerateKey: true }); }} className="text-[10px] font-bold px-2 py-1 rounded" style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
                           키 재발급
+                        </button>
+                        <button onClick={() => handleDelete(b.id, b.nickname)} className="text-[10px] font-bold px-2 py-1 rounded text-white" style={{ background: "#dc2626" }}>
+                          삭제
                         </button>
                       </div>
                     </td>

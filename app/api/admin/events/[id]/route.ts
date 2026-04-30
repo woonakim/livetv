@@ -1,6 +1,8 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { sanitize } from "@/lib/sanitize";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getSession();
@@ -31,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const id = parseInt(params.id);
   const data: Record<string, unknown> = {};
   for (const key of ["title", "content", "bannerImg", "bottomImg", "teamA", "teamB", "betType", "reward"]) {
-    if (body[key] !== undefined) data[key] = body[key];
+    if (body[key] !== undefined) data[key] = key === "content" ? sanitize(body[key]) : body[key];
   }
   if (body.deadline) data.deadline = new Date(body.deadline);
   if (body.isActive !== undefined) data.isActive = body.isActive;

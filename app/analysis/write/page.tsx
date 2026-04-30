@@ -43,13 +43,19 @@ export default function AnalysisWritePage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => {
+    Promise.all([
+      fetch("/api/auth/me").then(r => r.json()),
+      fetch("/api/site-settings").then(r => r.json()),
+    ]).then(([d, s]) => {
       const u = d.user;
-      if (!u || !["PICKSTER", "ADMIN", "SUPERADMIN"].includes(u.role)) {
+      if (!u) { router.push("/analysis"); return; }
+      // 일반 유저 작성 허용 토글이 OFF면 픽스터/관리자만 가능
+      const allowUser = s.allowUserAnalysis !== false; // 기본 true
+      if (!allowUser && !["PICKSTER", "ADMIN", "SUPERADMIN"].includes(u.role)) {
         router.push("/analysis");
-      } else {
-        setUser(u);
+        return;
       }
+      setUser(u);
     }).catch(() => router.push("/analysis"));
   }, [router]);
 
@@ -193,7 +199,13 @@ export default function AnalysisWritePage() {
         {/* 분석 내용 */}
         <div>
           <label className="text-xs font-bold mb-1 block" style={{ color: "var(--text-secondary)" }}>분석 내용</label>
-          <MarkdownEditor value={content} onChange={setContent} rows={12} onAiGenerate={handleAiGenerate} aiLoading={aiLoading} aiProviders={aiProviders} />
+          <MarkdownEditor
+            value={content} onChange={setContent} rows={12}
+            // AI 기능: 픽스터/관리자만 (일반 유저는 버튼 숨김)
+            onAiGenerate={user && ["PICKSTER", "ADMIN", "SUPERADMIN"].includes(user.role) ? handleAiGenerate : undefined}
+            aiLoading={aiLoading}
+            aiProviders={aiProviders}
+          />
         </div>
 
         {/* 예측/배당 */}

@@ -1,7 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import LevelBadge from "@/components/ui/LevelBadge";
+import { getSocket } from "@/lib/socket";
+
+// 외부 링크 정규화 — 프로토콜 누락 시 https:// 자동 prefix (기존 DB의 't.me/...' 호환)
+function normalizeUrl(raw: string): string {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
 
 interface BjInfo {
   id: number; userId: number; streamKey: string; nickname: string; title: string;
@@ -39,6 +50,14 @@ function formatElapsed(startStr: string | null): string {
 }
 
 export default function LivePage() {
+  return (
+    <Suspense fallback={null}>
+      <LivePageInner />
+    </Suspense>
+  );
+}
+
+function LivePageInner() {
   const [bjs, setBjs] = useState<BjInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [mainBj, setMainBj] = useState<BjInfo | null>(null);
@@ -102,8 +121,11 @@ export default function LivePage() {
       const all = Array.isArray(allData) ? allData : [];
       setBjs(all);
       if (all.length > 0 && !mainBjRef.current) {
+        // URL ?bj=streamKey 가 있으면 해당 BJ 우선 선택
+        const qsKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("bj") : null;
+        const fromQuery = qsKey ? all.find(b => b.streamKey === qsKey) : null;
         const firstLive = all.find(b => b.isLive);
-        const selected = firstLive || all[0];
+        const selected = fromQuery || firstLive || all[0];
         mainBjRef.current = selected;
         setMainBj(selected);
       } else if (mainBjRef.current) {
@@ -131,6 +153,17 @@ export default function LivePage() {
     setMainBj(bj);
   }, []);
 
+  // URL ?bj=streamKey 변경 시 해당 BJ로 전환 (드롭다운에서 다른 BJ 클릭 케이스)
+  const searchParams = useSearchParams();
+  const qsKey = searchParams.get("bj");
+  useEffect(() => {
+    if (!qsKey || bjs.length === 0) return;
+    const target = bjs.find(b => b.streamKey === qsKey);
+    if (target && mainBjRef.current?.streamKey !== qsKey) {
+      selectBj(target);
+    }
+  }, [qsKey, bjs, selectBj]);
+
   useEffect(() => {
     if (!mainBjId) return;
     fetch(`/api/bj/chat/settings?bjId=${mainBjId}`)
@@ -148,57 +181,70 @@ export default function LivePage() {
     chatSettings.systemMessages.forEach((sm) => {
       if (!sm.text) return;
       const interval = setInterval(() => {
-        fetch("/api/bj/chat", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bjId: mainBjId, text: sm.text, isSystem: true }),
-        }).then(() => {}).catch(() => {});
+        getSocket().emit("bj:send", { bjId: mainBjId, text: sm.text, isSystem: true });
       }, (sm.intervalMin || 5) * 60 * 1000);
       systemMsgTimers.current.push(interval);
     });
     return () => { systemMsgTimers.current.forEach(clearInterval); systemMsgTimers.current = []; };
   }, [chatSettings, mainBjIsLive, mainBjId, user?.role]);
 
-  const fetchChat = useCallback(() => {
+  // BJ 채팅 Socket.IO
+  useEffect(() => {
     if (!mainBjId) return;
-    fetch(`/api/bj/chat?bjId=${mainBjId}`)
-      .then(r => r.json())
-      .then((data: { messages: ChatMsg[]; pinnedMsg: ChatMsg | null }) => {
-        const msgs = Array.isArray(data.messages) ? data.messages : (Array.isArray(data) ? data : []);
-        setChatMessages(msgs);
-        setChatPinnedMsg(data.pinnedMsg || null);
-        scrollToBottom();
-      }).catch(() => {});
+    const s = getSocket();
+
+    s.emit("bj:join", { bjId: mainBjId });
+
+    const onInit = (data: { messages: ChatMsg[]; pinnedMsg: ChatMsg | null }) => {
+      setChatMessages(Array.isArray(data.messages) ? data.messages : []);
+      setChatPinnedMsg(data.pinnedMsg || null);
+      scrollToBottom();
+    };
+    const onMessage = (msg: ChatMsg) => {
+      setChatMessages(prev => [...prev, msg]);
+      scrollToBottom();
+    };
+    const onDeleted = (msgId: number) => {
+      setChatMessages(prev => prev.filter(m => m.id !== msgId));
+    };
+    const onPinned = (pinnedMsg: ChatMsg | null) => {
+      setChatPinnedMsg(pinnedMsg || null);
+    };
+    const onError = (data: { error: string }) => {
+      if (data.error) { setIsBanned(true); }
+    };
+
+    s.on("bj:init", onInit);
+    s.on("bj:message", onMessage);
+    s.on("bj:deleted", onDeleted);
+    s.on("bj:pinned", onPinned);
+    s.on("bj:error", onError);
+
+    return () => {
+      s.emit("bj:leave", { bjId: mainBjId });
+      s.off("bj:init", onInit);
+      s.off("bj:message", onMessage);
+      s.off("bj:deleted", onDeleted);
+      s.off("bj:pinned", onPinned);
+      s.off("bj:error", onError);
+    };
   }, [mainBjId, scrollToBottom]);
 
-  useEffect(() => {
-    fetchChat();
-    const interval = setInterval(fetchChat, 3000);
-    return () => clearInterval(interval);
-  }, [fetchChat]);
-
-  const sendMessage = async () => {
+  const sendMessage = () => {
     if (!chatInput.trim() || !user || !mainBj) return;
     if (isBanned) { alert("채팅이 차단되었습니다."); return; }
-    const res = await fetch("/api/bj/chat", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bjId: mainBj.id, text: chatInput.trim() }),
-    });
-    if (res.status === 403) { setIsBanned(true); alert("채팅이 차단되었습니다."); return; }
+    getSocket().emit("bj:send", { bjId: mainBj.id, text: chatInput.trim() });
     setChatInput("");
-    fetchChat();
   };
 
-  const deleteMessage = async (msgId: number) => {
-    await fetch(`/api/bj/chat?msgId=${msgId}`, { method: "DELETE" });
-    setChatMessages(prev => prev.filter(m => m.id !== msgId));
+  const deleteMessage = (msgId: number) => {
+    if (!mainBj) return;
+    getSocket().emit("bj:delete", { bjId: mainBj.id, msgId });
   };
 
-  const pinMessage = async (msgId: number, pin: boolean) => {
-    await fetch("/api/bj/chat/pin", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ msgId, pin }),
-    });
-    fetchChat();
+  const pinMessage = (msgId: number, pin: boolean) => {
+    if (!mainBj) return;
+    getSocket().emit("bj:pin", { bjId: mainBj.id, msgId, pin });
   };
 
   const banUser = async (userId: number, nickname: string) => {
@@ -367,7 +413,7 @@ export default function LivePage() {
                   </div>
                 </div>
                 {mainBj.bannerUrl && (
-                  <a href={mainBj.bannerUrl} target="_blank" rel="noopener noreferrer"
+                  <a href={normalizeUrl(mainBj.bannerUrl)} target="_blank" rel="noopener noreferrer"
                     className="shrink-0 px-4 py-2 rounded-lg text-[12px] font-bold text-white transition-all hover:opacity-90"
                     style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}>
                     💬 {mainBj.bannerText || "가입문의"}
@@ -421,7 +467,7 @@ export default function LivePage() {
           </div>
 
           {chatSettings?.bannerUrl && (
-            <a href={chatSettings.bannerUrl} target="_blank" rel="noopener noreferrer"
+            <a href={normalizeUrl(chatSettings.bannerUrl)} target="_blank" rel="noopener noreferrer"
               className="block mx-3 mt-2 px-4 py-2.5 rounded-lg text-center text-[13px] font-bold transition-all hover:opacity-90"
               style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)", color: "#fff", boxShadow: "0 2px 8px rgba(245,158,11,0.3)" }}>
               💬 {chatSettings.bannerText || "가입문의"} 클릭

@@ -21,15 +21,23 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = await req.json();
-  const levels: { level: number; name: string; requiredExp: number; badge: string; color?: string; bgColor?: string }[] = body.levels;
+  const levels: { level: number; name: string; requiredExp: number; badge: string; color?: string; bgColor?: string; birthdayBonusEnabled?: boolean }[] = body.levels;
 
   if (!Array.isArray(levels)) return NextResponse.json({ error: "잘못된 데이터" }, { status: 400 });
 
   for (const l of levels) {
+    const data = {
+      name: l.name,
+      requiredExp: l.requiredExp,
+      badge: l.badge,
+      color: l.color || "",
+      bgColor: l.bgColor || "",
+      birthdayBonusEnabled: !!l.birthdayBonusEnabled,
+    };
     await prisma.levelSetting.upsert({
       where: { level: l.level },
-      create: { level: l.level, name: l.name, requiredExp: l.requiredExp, badge: l.badge, color: l.color || "", bgColor: l.bgColor || "" },
-      update: { name: l.name, requiredExp: l.requiredExp, badge: l.badge, color: l.color || "", bgColor: l.bgColor || "" },
+      create: { level: l.level, ...data },
+      update: data,
     });
   }
 

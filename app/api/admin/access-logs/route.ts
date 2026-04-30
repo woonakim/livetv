@@ -37,9 +37,9 @@ export async function GET(req: NextRequest) {
     prisma.accessLog.count({ where }),
   ]);
 
-  // 오늘 통계
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // 오늘 통계 (KST 기준)
+  const { todayKST } = await import("@/lib/date-kr");
+  const today = todayKST();
   const [todayVisits, todayLogins, todayUniqueIps] = await Promise.all([
     prisma.accessLog.count({ where: { type: "visit", createdAt: { gte: today } } }),
     prisma.accessLog.count({ where: { type: "login", createdAt: { gte: today } } }),

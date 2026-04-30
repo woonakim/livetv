@@ -14,7 +14,7 @@ export interface YouTubeVideo {
   isHighlight: boolean;
 }
 
-const YOUTUBE_API_KEY_DEFAULT = "AIzaSyA2xMUnHQo7rS_dt63TgYgd63BUQfXK3Og";
+const YOUTUBE_API_KEY_DEFAULT = process.env.YOUTUBE_API_KEY || "";
 
 let cachedYtKey: { key: string; ts: number } | null = null;
 async function getYoutubeKey(): Promise<string> {
@@ -81,16 +81,19 @@ function parseVideoTitle(title: string): { category: string; league: string; hom
     }
   }
 
-  // "A vs B" 패턴
-  const simpleVs = title.match(/([가-힣A-Za-z\s.]+?)\s+vs\s+([가-힣A-Za-z\s.]+)/i);
-  if (simpleVs) {
-    homeTeam = simpleVs[1].replace(/^\[.*?\]\s*/, "").replace(/\d+R\s*/, "").replace(/^R\s+/, "").trim();
-    awayTeam = simpleVs[2].replace(/\s*[｜|].*/g, "").replace(/\s*\d+분.*/, "").replace(/^R\s+/, "").trim();
+  // "A vs B" 패턴 — 스포츠 리그가 감지된 경우에만 추출
+  if (category !== "etc") {
+    const simpleVs = title.match(/([가-힣A-Za-z0-9\s.]+?)\s+vs\s+([가-힣A-Za-z0-9\s.]+)/i);
+    if (simpleVs) {
+      homeTeam = simpleVs[1].replace(/^\[.*?\]\s*/, "").replace(/\d+R\s*/, "").replace(/^R\s+/, "").trim();
+      awayTeam = simpleVs[2].replace(/\s*[｜|].*/g, "").replace(/\s*\d+분.*/, "").replace(/^R\s+/, "").trim();
+    }
   }
 
-  // 퓨처스리그 등 팀명 뒤 "I", "II" 제거 (예: "KT I" → "KT", "삼성 II" → "삼성")
-  homeTeam = homeTeam.replace(/\s+I{1,2}$/, "").trim();
-  awayTeam = awayTeam.replace(/\s+I{1,2}$/, "").trim();
+  // 퓨처스리그 팀명 뒤 " I", " II" (+ 이후 날짜/숫자) 제거
+  // 예: "KT I" → "KT", "NC I 4" → "NC", "삼성 II 5/12" → "삼성"
+  homeTeam = homeTeam.replace(/\s+I{1,2}(\s+.*)?$/, "").trim();
+  awayTeam = awayTeam.replace(/\s+I{1,2}(\s+.*)?$/, "").trim();
 
   return { category, league, homeTeam, awayTeam, isHighlight };
 }
@@ -131,6 +134,17 @@ function applyChannelOverrides(channelId: string, title: string, parsed: { categ
     if (kboMatch) { homeTeam = kboMatch[1]; awayTeam = kboMatch[2]; }
   }
 
+  // KBL 약어 → 풀네임 변환 (KBO와 로고 충돌 방지)
+  if (category === "basketball" && (league === "KBL" || /프로농구|KBL/.test(title))) {
+    const KBL_NAMES: Record<string, string> = {
+      "LG": "창원 LG", "KT": "수원 KT", "삼성": "서울 삼성", "SK": "서울 SK",
+      "DB": "원주 DB", "KCC": "부산 KCC", "현대모비스": "울산 현대모비스",
+      "가스공사": "대구 한국가스공사", "한국가스공사": "대구 한국가스공사", "정관장": "안양 정관장", "소노": "고양 소노",
+    };
+    if (KBL_NAMES[homeTeam]) homeTeam = KBL_NAMES[homeTeam];
+    if (KBL_NAMES[awayTeam]) awayTeam = KBL_NAMES[awayTeam];
+  }
+
   return { category, league, homeTeam, awayTeam, isHighlight };
 }
 
@@ -138,7 +152,7 @@ function buildVideoObj(id: string, title: string, channel: string, published: st
   if (!overrides.homeTeam || !overrides.awayTeam) return null;
   // 티저/예고/비스포츠 영상 제외
   if (/티저|teaser|예고편/i.test(title)) return null;
-  if (/버티기|먹방|브이로그|vlog|예능|챌린지|겟인더|리액션|몰래카메라|꿀잼|드라마/i.test(title)) return null;
+  if (/버티기|먹방|브이로그|vlog|예능|챌린지|겟인더|리액션|몰래카메라|꿀잼|드라마|김민|나지완|레전드 대결|선수 대결|꿀잼 대결|VS 특집|얼굴|나이|키 차이|신체|밸런스 게임|퀴즈|인터뷰|비하인드|behind/i.test(title)) return null;
   // 카테고리가 etc인데 하이라이트도 아닌 경우 제외
   if (overrides.category === "etc" && !overrides.isHighlight) return null;
 

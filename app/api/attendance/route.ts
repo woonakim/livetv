@@ -4,15 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { grantReward } from "@/lib/reward";
+import { todayDateKST, yesterdayDateKST, startOfMonthKST, endOfMonthKST } from "@/lib/date-kr";
 
 // GET: 이번 달 출석 기록 조회
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "로그인 필요" }, { status: 401 });
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const startOfMonth = startOfMonthKST();
+  const endOfMonth = endOfMonthKST();
 
   const records = await prisma.attendance.findMany({
     where: {
@@ -50,8 +50,7 @@ export async function POST() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "로그인 필요" }, { status: 401 });
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = todayDateKST();
 
   // 중복 체크
   const existing = await prisma.attendance.findUnique({
@@ -62,8 +61,7 @@ export async function POST() {
   }
 
   // 어제 출석 확인 → 연속 출석 계산
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterday = yesterdayDateKST();
   const yesterdayRecord = await prisma.attendance.findUnique({
     where: { userId_date: { userId: session.id, date: yesterday } },
   });

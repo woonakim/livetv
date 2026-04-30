@@ -43,6 +43,18 @@ export default function AdminPickstersPage() {
     fetchData();
   };
 
+  const handleReject = async (id: number, nickname: string) => {
+    if (!confirm(`"${nickname}" 픽스터 신청을 거절하시겠습니까?\n프로필이 완전히 삭제됩니다.`)) return;
+    await fetch(`/api/admin/picksters?id=${id}`, { method: "DELETE" });
+    fetchData();
+  };
+
+  const handleDelete = async (id: number, nickname: string) => {
+    if (!confirm(`"${nickname}" 픽스터를 삭제하시겠습니까?\n프로필 + 픽스터 권한(role)이 함께 제거됩니다.`)) return;
+    await fetch(`/api/admin/picksters?id=${id}&demote=1`, { method: "DELETE" });
+    fetchData();
+  };
+
   const pending = picksters.filter(p => !p.isApproved);
   const approved = picksters.filter(p => p.isApproved);
 
@@ -83,7 +95,7 @@ export default function AdminPickstersPage() {
                       style={{ background: "#16a34a" }}
                     >승인</button>
                     <button
-                      onClick={() => handleAction(p.id, { isActive: false })}
+                      onClick={() => handleReject(p.id, p.nickname)}
                       className="text-xs font-bold px-3 py-1.5 rounded-lg text-white"
                       style={{ background: "#dc2626" }}
                     >거절</button>
@@ -141,13 +153,22 @@ export default function AdminPickstersPage() {
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <button
-                        onClick={() => handleAction(p.id, { isActive: !p.isActive })}
-                        className="text-[10px] font-bold px-2 py-1 rounded"
-                        style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-                      >
-                        {p.isActive ? "비활성화" : "활성화"}
-                      </button>
+                      <div className="flex gap-1 justify-end">
+                        <button
+                          onClick={() => handleAction(p.id, { isActive: !p.isActive })}
+                          className="text-[10px] font-bold px-2 py-1 rounded"
+                          style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+                        >
+                          {p.isActive ? "비활성화" : "활성화"}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p.id, p.nickname)}
+                          className="text-[10px] font-bold px-2 py-1 rounded text-white"
+                          style={{ background: "#dc2626" }}
+                        >
+                          삭제
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

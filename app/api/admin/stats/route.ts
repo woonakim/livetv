@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { todayKST } from "@/lib/date-kr";
 
 export async function GET() {
   const session = await getSession();
@@ -10,8 +11,7 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = todayKST();
 
   const [
     totalUsers, todayUsers, totalPartners, activeEvents,
@@ -27,37 +27,28 @@ export async function GET() {
     prisma.pointExchange.count({ where: { status: "PENDING" } }),
     prisma.chatMessage.count(),
     prisma.chatMessage.count({ where: { createdAt: { gte: today } } }),
-    // 당일 접속 (회원)
     prisma.accessLog.groupBy({ by: ["userId"], where: { type: "visit", createdAt: { gte: today }, userId: { not: null } } }).then(r => r.length),
-    // 당일 접속 (비회원)
     prisma.accessLog.groupBy({ by: ["ip"], where: { type: "visit", createdAt: { gte: today }, userId: null } }).then(r => r.length),
-    // 당일 로그인
     prisma.accessLog.count({ where: { type: "login", createdAt: { gte: today } } }),
-    // 당일 고유 IP
     prisma.accessLog.groupBy({ by: ["ip"], where: { createdAt: { gte: today } } }).then(r => r.length),
-    // 당일 출석
-    prisma.attendance.count({ where: { createdAt: { gte: today } } }),
-    // 분석글
+    prisma.attendance.count({ where: { date: { gte: today } } }),
     prisma.analysisPost.count(),
     prisma.analysisPost.count({ where: { createdAt: { gte: today } } }),
-    // 픽스터
     prisma.picksterProfile.count({ where: { isApproved: true, isActive: true } }),
     prisma.picksterProfile.count({ where: { isApproved: false } }),
   ]);
 
-  // 최근 7일 접속 추이
+  // 최근 7일 접속 추이 (KST 기준)
   const weeklyVisits: { date: string; count: number }[] = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    const next = new Date(d);
-    next.setDate(next.getDate() + 1);
+    const dayStart = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const kstDate = new Date(dayStart.getTime() + 9 * 60 * 60 * 1000);
     const count = await prisma.accessLog.groupBy({
       by: ["ip"],
-      where: { createdAt: { gte: d, lt: next } },
+      where: { createdAt: { gte: dayStart, lt: dayEnd } },
     }).then(r => r.length);
-    weeklyVisits.push({ date: `${d.getMonth() + 1}/${d.getDate()}`, count });
+    weeklyVisits.push({ date: `${kstDate.getUTCMonth() + 1}/${kstDate.getUTCDate()}`, count });
   }
 
   return NextResponse.json({

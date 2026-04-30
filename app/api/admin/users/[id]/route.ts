@@ -1,7 +1,9 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { adminLog } from "@/lib/admin-log";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getSession();
@@ -14,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     select: {
       id: true, username: true, nickname: true, role: true,
       points: true, exp: true, isActive: true,
-      name: true, phone: true, email: true, referredBy: true,
+      name: true, phone: true, phoneVerified: true, email: true, referredBy: true,
       createdAt: true, updatedAt: true,
       pointLogs: { orderBy: { createdAt: "desc" }, take: 20 },
       pointExchanges: { orderBy: { createdAt: "desc" }, take: 10 },
@@ -47,6 +49,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.isActive !== undefined) data.isActive = body.isActive;
   if (body.points !== undefined) data.points = body.points;
   if (body.exp !== undefined) data.exp = body.exp;
+  if (body.nickname !== undefined) data.nickname = body.nickname;
   if (body.name !== undefined) data.name = body.name;
   if (body.phone !== undefined) data.phone = body.phone;
   if (body.email !== undefined) data.email = body.email || null;
@@ -64,16 +67,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (user) {
       data.points = user.points + amount;
       await prisma.pointLog.create({
-        data: {
-          userId: id,
-          type: amount >= 0 ? "EARN" : "DEDUCT",
-          amount: Math.abs(amount),
-          reason,
-        },
+        data: { userId: id, type: amount >= 0 ? "EARN" : "DEDUCT", amount: Math.abs(amount), reason },
       });
     }
   }
 
+  // 경험치 수동 조정
+  if (body.expAdjust) {
+    const amount = parseInt(body.expAdjust.amount);
+    const user = await prisma.user.findUnique({ where: { id }, select: { exp: true } });
+    if (user) {
+      data.exp = Math.max(0, user.exp + amount);
+    }
+  }
+
   const updated = await prisma.user.update({ where: { id }, data });
+
+  await adminLog({ action: "user.update", target: `userId:${id}`, detail: body });
+
   return NextResponse.json({ ok: true, user: { id: updated.id, role: updated.role, points: updated.points, isActive: updated.isActive } });
 }

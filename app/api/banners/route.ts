@@ -1,21 +1,20 @@
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getCache, setCache } from "@/lib/cache-store";
 
-// 공개: 활성 배너 목록
-let cache: { data: unknown; ts: number } | null = null;
-const CACHE_TTL = 60 * 1000; // 1분
+const CACHE_KEY = "banners";
+const CACHE_TTL = 60 * 1000;
 
 export async function GET() {
-  const now = Date.now();
-  if (cache && now - cache.ts < CACHE_TTL) {
-    return NextResponse.json(cache.data);
-  }
+  const cached = getCache(CACHE_KEY, CACHE_TTL);
+  if (cached) return NextResponse.json(cached);
 
   const banners = await prisma.banner.findMany({
     where: { isActive: true },
     orderBy: { sort: "asc" },
   });
 
-  cache = { data: banners, ts: now };
+  setCache(CACHE_KEY, banners);
   return NextResponse.json(banners);
 }

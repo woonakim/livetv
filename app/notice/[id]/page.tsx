@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import MetaHead from "@/components/ui/MetaHead";
 
 interface Notice {
   id: number; title: string; content: string; author: string;
@@ -74,6 +75,7 @@ export default function NoticeDetailPage() {
 
   return (
     <div className="flex flex-col gap-3 p-2">
+      {notice && <MetaHead title={notice.title} description={notice.content?.replace(/<[^>]*>/g, "").slice(0, 150)} />}
       <Link href="/notice" className="flex items-center gap-1 text-xs font-bold w-fit" style={{ color: "var(--text-secondary)" }}>
         <i className="fas fa-chevron-left text-[10px]" /> 공지사항 목록
       </Link>
@@ -93,7 +95,11 @@ export default function NoticeDetailPage() {
       </div>
 
       <div className="rounded-lg p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-        <div className="flex flex-col gap-0.5">{renderContent(notice.content)}</div>
+        {notice.content.includes("<") ? (
+          <div className="prose-content text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }} dangerouslySetInnerHTML={{ __html: notice.content }} />
+        ) : (
+          <div className="flex flex-col gap-0.5">{renderContent(notice.content)}</div>
+        )}
       </div>
 
       <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>

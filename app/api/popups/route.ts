@@ -1,15 +1,14 @@
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getCache, setCache } from "@/lib/cache-store";
 
-// 공개: 활성 팝업 목록 (기간 내)
-let cache: { data: unknown; ts: number } | null = null;
+const CACHE_KEY = "popups";
 const CACHE_TTL = 60 * 1000;
 
 export async function GET() {
-  const now = Date.now();
-  if (cache && now - cache.ts < CACHE_TTL) {
-    return NextResponse.json(cache.data);
-  }
+  const cached = getCache(CACHE_KEY, CACHE_TTL);
+  if (cached) return NextResponse.json(cached);
 
   const nowDate = new Date();
   const popups = await prisma.popup.findMany({
@@ -25,6 +24,6 @@ export async function GET() {
     orderBy: { sort: "asc" },
   });
 
-  cache = { data: popups, ts: now };
+  setCache(CACHE_KEY, popups);
   return NextResponse.json(popups);
 }

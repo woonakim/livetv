@@ -37,12 +37,17 @@ export async function POST(req: NextRequest) {
 
     if (!profile) return NextResponse.json({ error: "픽스터 프로필 없음" }, { status: 404 });
 
+    // 확장자 + MIME 검증
+    const ALLOWED_EXTS = ["jpg", "jpeg", "png", "gif", "webp"];
+    const ALLOWED_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!ALLOWED_EXTS.includes(ext) || !ALLOWED_MIMES.includes(file.type)) {
+      return NextResponse.json({ error: "이미지 파일만 업로드 가능합니다." }, { status: 400 });
+    }
+
     // 디렉토리 보장
     const dir = path.join(process.cwd(), "public", "pickster-avatars");
     await mkdir(dir, { recursive: true });
-
-    // 파일 저장
-    const ext = file.name.split(".").pop()?.toLowerCase() || "png";
     const filename = `pickster_${profile.id}_${Date.now()}.${ext}`;
     const savePath = path.join(dir, filename);
 

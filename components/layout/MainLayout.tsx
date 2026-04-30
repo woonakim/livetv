@@ -8,6 +8,7 @@ import RightSidebar from "./RightSidebar";
 import AuthModal from "@/components/ui/AuthModal";
 import FloatingPanel from "./FloatingPanel";
 // import ThemePalette from "@/components/ui/ThemePalette";
+// import GoldAccentPanel from "@/components/ui/GoldAccentPanel";
 import InstallPrompt from "@/components/ui/InstallPrompt";
 import AccessTracker from "@/components/ui/AccessTracker";
 
@@ -34,10 +35,6 @@ const DESKTOP_NAV = [
     href: "/broadcast",
     badge: "LIVE",
     svgIcon: "/svg_logo/icon-svg-02.svg",
-    sub: [
-      { label: "라이브 중계", href: "/broadcast" },
-      { label: "중계 일정",   href: "/broadcast" },
-    ],
   },
   {
     label: "스포츠 분석",
@@ -517,6 +514,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       {/* ── 임시 색상 팔레트 (고객 프레젠테이션용) ── */}
       {/* <ThemePalette /> */}
+      {/* <GoldAccentPanel /> */}
 
       {/* ── 플로팅 패널 (모바일 전용) ── */}
       {!showMore && (
@@ -553,16 +551,16 @@ function BjDropdown() {
 
   return (
     <div
-      className="absolute top-full left-0 hidden group-hover:block z-50 w-full rounded-b-lg overflow-hidden"
-      style={{ background: "var(--brand)", boxShadow: "0 6px 12px rgba(0,0,0,0.18)", minWidth: 100 }}
+      className="absolute top-full left-1/2 -translate-x-1/2 hidden group-hover:block z-50 rounded-b-lg overflow-hidden"
+      style={{ background: "var(--brand)", boxShadow: "0 6px 12px rgba(0,0,0,0.18)", minWidth: 160 }}
     >
       <div className="absolute -top-[6px] left-1/2 -translate-x-1/2 w-0 h-0" style={{ borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderBottom: "6px solid var(--brand)" }} />
       <ul className="py-1">
         {bjs.map(bj => (
           <li key={bj.id} className="mx-1.5 my-1">
-            <Link href="/live" className="flex items-center justify-between px-2 py-1 text-[12px] text-white font-medium rounded hover:bg-black/10 transition-colors">
-              <span>{bj.nickname}</span>
-              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${bj.isLive ? "bg-red-500" : "bg-white/20"}`}>
+            <Link href={`/live?bj=${bj.streamKey}`} className="flex items-center justify-between gap-2 px-2 py-1 text-[12px] text-white font-medium rounded hover:bg-black/10 transition-colors whitespace-nowrap">
+              <span className="truncate">{bj.nickname}</span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${bj.isLive ? "bg-red-500" : "bg-white/20"}`}>
                 {bj.isLive ? "ON" : "OFF"}
               </span>
             </Link>

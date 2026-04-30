@@ -1,10 +1,11 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "SUPERADMIN")) {
+  if (!session || !["ADMIN", "SUPERADMIN"].includes(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -13,6 +14,7 @@ export async function GET(req: NextRequest) {
   const limit = 20;
   const search = url.searchParams.get("search") || "";
   const role = url.searchParams.get("role") || "";
+  const verifiedOnly = url.searchParams.get("verifiedOnly") === "1";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {};
@@ -24,6 +26,7 @@ export async function GET(req: NextRequest) {
     ];
   }
   if (role) where.role = role;
+  if (verifiedOnly) where.phoneVerified = true;
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
@@ -31,7 +34,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, username: true, nickname: true, role: true,
         points: true, exp: true, isActive: true,
-        name: true, phone: true, email: true,
+        name: true, phone: true, phoneVerified: true, email: true, referredBy: true,
         createdAt: true, _count: { select: { chatMessages: true, pointExchanges: true } },
       },
       orderBy: { id: "desc" },

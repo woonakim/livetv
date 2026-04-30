@@ -1,6 +1,8 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { sanitize } from "@/lib/sanitize";
 
 export async function GET() {
   const session = await getSession();
@@ -20,7 +22,7 @@ export async function POST(req: NextRequest) {
   const notice = await prisma.notice.create({
     data: {
       title: body.title || "",
-      content: body.content || "",
+      content: sanitize(body.content || ""),
       author: body.author || "라이브TV",
       isPinned: body.isPinned ?? false,
     },

@@ -5,10 +5,7 @@ import { usePathname } from "next/navigation";
 
 const DESKTOP_NAV = [
   { label: "스폰업체", href: "/partners" },
-  { label: "스포츠 중계", href: "/broadcast", badge: "LIVE", sub: [
-    { label: "라이브 중계", href: "/broadcast" },
-    { label: "중계 일정",   href: "/broadcast" },
-  ]},
+  { label: "스포츠 중계", href: "/broadcast", badge: "LIVE" },
   { label: "스포츠 분석", href: "/analysis/premium", sub: [
     { label: "프리미엄 분석", href: "/analysis/premium" },
     { label: "분석 포스트",   href: "/analysis" },

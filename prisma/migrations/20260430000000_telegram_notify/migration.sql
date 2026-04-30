@@ -1,0 +1,4 @@
+ALTER TABLE "SiteSetting"
+  ADD COLUMN IF NOT EXISTS "telegramBotToken"     TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS "telegramChatId"       TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS "telegramNotifyEnabled" BOOLEAN NOT NULL DEFAULT false;

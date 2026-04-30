@@ -41,7 +41,7 @@ export default function LeftSidebar() {
   const [logoEnabled, setLogoEnabled] = useState(true);
 
   useEffect(() => {
-    fetch("/api/analysis?limit=10").then(r => r.json()).then(data => setPosts(data.items || [])).catch(() => {});
+    fetch("/api/analysis?limit=10&upcoming=true").then(r => r.json()).then(data => setPosts(data.items || [])).catch(() => {});
     fetch("/api/site-settings").then(r => r.json()).then(s => setLogoEnabled(s.showLogoAnalysis ?? true)).catch(() => {});
   }, []);
 
@@ -131,6 +131,9 @@ export default function LeftSidebar() {
 
       {/* 스코어 정보 위젯 */}
       <StandingsWidget />
+
+      {/* 하단 배너 (DB 관리) */}
+      <SidebarBanners position="left_bottom" />
 
     </aside>
   );

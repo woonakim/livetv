@@ -101,9 +101,11 @@ export default function EventBoardDetailPage() {
 
       {/* 본문 */}
       <div className="rounded-lg p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-        <div className="flex flex-col gap-0.5">
-          {renderContent(post.content)}
-        </div>
+        {post.content.includes("<") ? (
+          <div className="prose-content text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }} dangerouslySetInnerHTML={{ __html: post.content }} />
+        ) : (
+          <div className="flex flex-col gap-0.5">{renderContent(post.content)}</div>
+        )}
       </div>
 
       {/* 이전/다음 글 */}

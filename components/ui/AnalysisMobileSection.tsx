@@ -20,7 +20,7 @@ export default function AnalysisMobileSection() {
   const [posts, setPosts] = useState<AnalysisItem[]>([]);
 
   useEffect(() => {
-    fetch("/api/analysis?limit=3")
+    fetch("/api/analysis?limit=3&upcoming=true")
       .then(r => r.json())
       .then(data => setPosts(data.items || []))
       .catch(() => {});

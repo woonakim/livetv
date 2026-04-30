@@ -154,6 +154,268 @@ export default function AdminRewardsPage() {
           </tbody>
         </table>
       </div>
+
+      <EventStreakSection />
+      <BirthdayBonusSection />
+      <AnalysisPermissionSection />
+      <ChatRewardCapSection />
+    </div>
+  );
+}
+
+interface SiteSettingShape {
+  birthdayBonusEnabled: boolean;
+  allowUserAnalysis: boolean;
+  analysisRewardDailyLimit: number;
+  chatRewardDailyPointCap: number;
+  chatRewardDailyExpCap: number;
+  chatMinLength: number;
+  chatMinLengthEnabled: boolean;
+  chatDuplicateBlockEnabled: boolean;
+}
+
+function useSiteSettings() {
+  const [s, setS] = useState<SiteSettingShape | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    fetch("/api/admin/site-settings").then(r => r.json()).then(setS).catch(() => {});
+  }, []);
+  const patch = async (body: Partial<SiteSettingShape>) => {
+    if (!s) return;
+    setSaving(true);
+    setS({ ...s, ...body } as SiteSettingShape);
+    await fetch("/api/admin/site-settings", {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    setSaving(false);
+  };
+  return { s, saving, patch };
+}
+
+// ─── 생일 축하 자동 보상 ─────────────
+function BirthdayBonusSection() {
+  const { s, saving, patch } = useSiteSettings();
+  if (!s) return null;
+  return (
+    <div className="mt-8">
+      <h2 className="text-base font-bold text-gray-800 mb-3">🎂 생일 축하 자동 보상</h2>
+      <p className="text-[11px] text-gray-500 mb-3">
+        매일 KST 0시에 생일자에게 자동 지급. 활동보상의 <code>birthday</code> 점수가 적용됩니다. 어느 레벨에서 지급할지는{" "}
+        <a href="/admin/levels" className="text-blue-600 hover:underline">레벨 설정</a>의 &lsquo;🎂 생일&rsquo; 체크박스로 설정합니다.
+      </p>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--surface)" }}>
+          <p className="text-sm">활성화 (마스터 ON/OFF)</p>
+          <button
+            onClick={() => patch({ birthdayBonusEnabled: !s.birthdayBonusEnabled })}
+            disabled={saving}
+            className="relative w-11 h-6 rounded-full transition-colors"
+            style={{ background: s.birthdayBonusEnabled ? "var(--brand)" : "#d1d5db" }}
+          >
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ left: s.birthdayBonusEnabled ? "22px" : "2px" }} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 분석글 작성 권한 ─────────────
+function AnalysisPermissionSection() {
+  const { s, saving, patch } = useSiteSettings();
+  const [localLimit, setLocalLimit] = useState<number | null>(null);
+  useEffect(() => { if (s) setLocalLimit(s.analysisRewardDailyLimit); }, [s]);
+  if (!s || localLimit === null) return null;
+  return (
+    <div className="mt-8">
+      <h2 className="text-base font-bold text-gray-800 mb-3">📝 분석글 작성 권한</h2>
+      <p className="text-[11px] text-gray-500 mb-3">
+        OFF: 픽스터/관리자 전용 / ON: 일반 유저도 작성 가능. 보상은 하루 N회까지 자동 지급 (0 = 무제한).
+      </p>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ background: "var(--surface)" }}>
+          <p className="text-sm">일반 유저 작성 허용</p>
+          <button
+            onClick={() => patch({ allowUserAnalysis: !s.allowUserAnalysis })}
+            disabled={saving}
+            className="relative w-11 h-6 rounded-full transition-colors"
+            style={{ background: s.allowUserAnalysis ? "var(--brand)" : "#d1d5db" }}
+          >
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ left: s.allowUserAnalysis ? "22px" : "2px" }} />
+          </button>
+        </div>
+        <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--surface)" }}>
+          <p className="text-sm">일일 보상 지급 횟수</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="number" min={0} max={99}
+              value={localLimit}
+              onChange={e => setLocalLimit(parseInt(e.target.value) || 0)}
+              onBlur={e => patch({ analysisRewardDailyLimit: parseInt(e.target.value) || 0 })}
+              className="w-24 rounded px-2 py-1 text-sm text-right"
+              style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            />
+            <span className="text-[11px] text-gray-500">회 (0=무제한)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 채팅 메시지 보상 캡 ─────────────
+function ChatRewardCapSection() {
+  const { s, saving, patch } = useSiteSettings();
+  const [local, setLocal] = useState<{ ptCap: number; expCap: number; minLen: number } | null>(null);
+  useEffect(() => {
+    if (s) setLocal({ ptCap: s.chatRewardDailyPointCap, expCap: s.chatRewardDailyExpCap, minLen: s.chatMinLength });
+  }, [s]);
+  if (!s || !local) return null;
+  return (
+    <div className="mt-8">
+      <h2 className="text-base font-bold text-gray-800 mb-3">💬 채팅 메시지 보상 캡</h2>
+      <p className="text-[11px] text-gray-500 mb-3">
+        유저당 1일 적립 한도 + 글자수/중복 차단 옵션. 0 = 무제한.
+      </p>
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ background: "var(--surface)" }}>
+          <p className="text-sm">최소 글자수 제한</p>
+          <button
+            onClick={() => patch({ chatMinLengthEnabled: !s.chatMinLengthEnabled })}
+            disabled={saving}
+            className="relative w-11 h-6 rounded-full transition-colors"
+            style={{ background: s.chatMinLengthEnabled ? "var(--brand)" : "#d1d5db" }}
+          >
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ left: s.chatMinLengthEnabled ? "22px" : "2px" }} />
+          </button>
+        </div>
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ background: "var(--surface)" }}>
+          <p className="text-sm">중복 메시지 차단</p>
+          <button
+            onClick={() => patch({ chatDuplicateBlockEnabled: !s.chatDuplicateBlockEnabled })}
+            disabled={saving}
+            className="relative w-11 h-6 rounded-full transition-colors"
+            style={{ background: s.chatDuplicateBlockEnabled ? "var(--brand)" : "#d1d5db" }}
+          >
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ left: s.chatDuplicateBlockEnabled ? "22px" : "2px" }} />
+          </button>
+        </div>
+        {([
+          { key: "chatRewardDailyPointCap" as const, label: "1일 포인트 캡", localKey: "ptCap" as const, suffix: "P (0=무제한)" },
+          { key: "chatRewardDailyExpCap" as const, label: "1일 경험치 캡", localKey: "expCap" as const, suffix: "EXP (0=무제한)" },
+          { key: "chatMinLength" as const, label: "최소 글자수", localKey: "minLen" as const, suffix: "자 이상" },
+        ]).map((row, idx, arr) => (
+          <div key={row.key} className={`flex items-center justify-between px-4 py-3${idx < arr.length - 1 ? " border-b" : ""}`} style={{ background: "var(--surface)" }}>
+            <p className="text-sm">{row.label}</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number" min={0} max={100000}
+                value={local[row.localKey]}
+                onChange={e => setLocal({ ...local, [row.localKey]: parseInt(e.target.value) || 0 })}
+                onBlur={e => patch({ [row.key]: parseInt(e.target.value) || 0 } as Partial<SiteSettingShape>)}
+                className="w-28 rounded px-2 py-1 text-sm text-right"
+                style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+              />
+              <span className="text-[11px] text-gray-500">{row.suffix}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface StreakRow { id: number; threshold: number; points: number; exp: number; isActive: boolean }
+
+function EventStreakSection() {
+  const [rows, setRows] = useState<StreakRow[]>([]);
+  const [editing, setEditing] = useState<{ threshold: string; points: string; exp: string }>({ threshold: "", points: "", exp: "" });
+  const [saving, setSaving] = useState(false);
+
+  const load = () => fetch("/api/admin/event-streak-settings").then(r => r.json()).then((d) => Array.isArray(d) ? setRows(d) : setRows([]));
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if (saving) return;
+    const t = parseInt(editing.threshold);
+    if (!t || t < 1) { alert("연승 횟수는 1 이상이어야 합니다."); return; }
+    setSaving(true);
+    await fetch("/api/admin/event-streak-settings", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threshold: t, points: parseInt(editing.points) || 0, exp: parseInt(editing.exp) || 0, isActive: true }),
+    });
+    setEditing({ threshold: "", points: "", exp: "" });
+    await load();
+    setSaving(false);
+  };
+
+  const remove = async (threshold: number) => {
+    if (!confirm(`${threshold}연승 단계를 삭제할까요?`)) return;
+    await fetch(`/api/admin/event-streak-settings/${threshold}`, { method: "DELETE" });
+    await load();
+  };
+
+  const toggleActive = async (r: StreakRow) => {
+    await fetch("/api/admin/event-streak-settings", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threshold: r.threshold, points: r.points, exp: r.exp, isActive: !r.isActive }),
+    });
+    await load();
+  };
+
+  return (
+    <div className="mt-8">
+      <h2 className="text-base font-bold text-gray-800 mb-3">🔥 이벤트 연승 보상 단계</h2>
+      <p className="text-[11px] text-gray-500 mb-3">이벤트 매치 연승이 아래 조건과 맞을 때 보상이 지급됩니다. 단계는 자유롭게 추가/삭제 가능합니다.</p>
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap items-end gap-2">
+          <div>
+            <label className="text-[11px] text-gray-500 block">N연승</label>
+            <input type="number" min={1} value={editing.threshold} onChange={e => setEditing({ ...editing, threshold: e.target.value })} placeholder="3" className="w-20 h-8 px-2 border border-gray-300 rounded text-[13px] text-right" />
+          </div>
+          <div>
+            <label className="text-[11px] text-gray-500 block">포인트</label>
+            <input type="number" min={0} value={editing.points} onChange={e => setEditing({ ...editing, points: e.target.value })} placeholder="100" className="w-24 h-8 px-2 border border-gray-300 rounded text-[13px] text-right" />
+          </div>
+          <div>
+            <label className="text-[11px] text-gray-500 block">경험치</label>
+            <input type="number" min={0} value={editing.exp} onChange={e => setEditing({ ...editing, exp: e.target.value })} placeholder="50" className="w-24 h-8 px-2 border border-gray-300 rounded text-[13px] text-right" />
+          </div>
+          <button onClick={save} disabled={saving} className="h-8 px-4 bg-blue-600 text-white text-[12px] font-bold rounded">추가/수정</button>
+        </div>
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
+              <th className="px-4 py-2 text-left font-semibold">단계</th>
+              <th className="px-4 py-2 text-right font-semibold">포인트</th>
+              <th className="px-4 py-2 text-right font-semibold">경험치</th>
+              <th className="px-4 py-2 text-center font-semibold">활성</th>
+              <th className="px-4 py-2 text-center font-semibold">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400 text-[12px]">아직 등록된 연승 단계가 없습니다.</td></tr>
+            )}
+            {rows.map(r => (
+              <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2 font-bold">{r.threshold}연승</td>
+                <td className="px-4 py-2 text-right">{r.points.toLocaleString()}P</td>
+                <td className="px-4 py-2 text-right">{r.exp.toLocaleString()}EXP</td>
+                <td className="px-4 py-2 text-center">
+                  <button onClick={() => toggleActive(r)} className={`text-[11px] font-bold ${r.isActive ? "text-green-600" : "text-gray-400"}`}>
+                    {r.isActive ? "활성" : "비활성"}
+                  </button>
+                </td>
+                <td className="px-4 py-2 text-center">
+                  <button onClick={() => remove(r.threshold)} className="text-[12px] font-bold text-red-500 hover:underline">삭제</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

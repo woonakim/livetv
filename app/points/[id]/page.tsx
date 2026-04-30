@@ -36,6 +36,15 @@ export default function PointProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [exchanging, setExchanging] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  // 인증 모달
+  const [showVerify, setShowVerify] = useState(false);
+  const [verifyPhone, setVerifyPhone] = useState("");
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifySent, setVerifySent] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState("");
+  const [verifyCooldown, setVerifyCooldown] = useState(0);
+  const [verifying, setVerifying] = useState(false);
 
   const fetchData = () => {
     Promise.all([
@@ -44,7 +53,7 @@ export default function PointProductDetailPage() {
       fetch("/api/point-exchange").then(r => r.ok ? r.json() : []).catch(() => []),
     ]).then(([products, me, exList]) => {
       setProduct(products.find((p: Product) => p.id === id) ?? null);
-      if (me.user) setUserPoints(me.user.points ?? 0);
+      if (me.user) { setUserPoints(me.user.points ?? 0); setPhoneVerified(!!me.user.phoneVerified); }
       setExchanges(exList);
       setLoading(false);
     });
@@ -54,6 +63,7 @@ export default function PointProductDetailPage() {
 
   const handleExchange = async () => {
     if (!product || exchanging) return;
+    if (!phoneVerified) { setShowVerify(true); return; }
     setExchanging(true);
     setResult(null);
     try {
@@ -64,17 +74,51 @@ export default function PointProductDetailPage() {
       });
       const data = await res.json();
       if (!res.ok) {
+        if (data.needVerify) { setShowVerify(true); }
         setResult({ ok: false, msg: data.error });
       } else {
         setResult({ ok: true, msg: `${product.name} 교환 신청이 완료되었습니다!` });
         setUserPoints(prev => prev !== null ? prev - product.price : null);
-        // 교환 내역 새로고침
         fetch("/api/point-exchange").then(r => r.ok ? r.json() : []).then(setExchanges);
       }
     } catch {
       setResult({ ok: false, msg: "서버 오류가 발생했습니다." });
     }
     setExchanging(false);
+  };
+
+  const handleSendCode = async () => {
+    if (!verifyPhone.trim() || verifyCooldown > 0) return;
+    setVerifyMsg("");
+    const res = await fetch("/api/auth/phone/send", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: verifyPhone }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setVerifyMsg(data.error); return; }
+    setVerifySent(true);
+    setVerifyMsg("인증번호가 발송되었습니다.");
+    setVerifyCooldown(60);
+    const timer = setInterval(() => {
+      setVerifyCooldown(prev => { if (prev <= 1) { clearInterval(timer); return 0; } return prev - 1; });
+    }, 1000);
+  };
+
+  const handleVerifyCode = async () => {
+    if (!verifyCode.trim() || verifying) return;
+    setVerifying(true);
+    setVerifyMsg("");
+    const res = await fetch("/api/auth/phone/verify", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: verifyPhone, code: verifyCode }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setVerifyMsg(data.error); setVerifying(false); return; }
+    setPhoneVerified(true);
+    setShowVerify(false);
+    setVerifyMsg("");
+    setVerifying(false);
+    setResult({ ok: true, msg: "핸드폰 인증이 완료되었습니다. 교환 버튼을 다시 눌러주세요." });
   };
 
   const formatDate = (d: string) => {
@@ -156,6 +200,26 @@ export default function PointProductDetailPage() {
           </div>
         )}
 
+        {/* 교환 성공 시 텔레그램 고객센터 배너 */}
+        {result?.ok && result.msg.includes("교환 신청") && (
+          <a
+            href="https://t.me/LiveTV1004"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 p-3 rounded-lg mb-3 transition-all hover:opacity-90"
+            style={{ background: "linear-gradient(135deg, #0088cc, #0077b5)", border: "1px solid rgba(0,136,204,0.3)" }}
+          >
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="white"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-bold text-white">기프티콘 수령 안내</p>
+              <p className="text-[11px] text-white/80">텔레그램 고객센터로 연락해주시면 빠르게 처리해드립니다</p>
+            </div>
+            <span className="text-white/60 text-[18px] shrink-0">›</span>
+          </a>
+        )}
+
         <button
           onClick={handleExchange}
           disabled={exchanging || !canExchange || userPoints === null}
@@ -207,6 +271,52 @@ export default function PointProductDetailPage() {
           </div>
         )}
       </div>
+
+      {/* 핸드폰 인증 모달 */}
+      {showVerify && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => setShowVerify(false)}>
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)" }} />
+          <div className="relative w-[90%] max-w-sm rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
+            <h3 className="text-[16px] font-bold mb-1" style={{ color: "var(--text-primary)" }}>핸드폰 인증</h3>
+            <p className="text-[12px] mb-4" style={{ color: "var(--text-secondary)" }}>포인트 교환을 위해 핸드폰 인증이 필요합니다.</p>
+
+            {verifyMsg && (
+              <div className="text-[12px] font-bold py-2 px-3 rounded mb-3" style={{ background: verifyMsg.includes("완료") || verifyMsg.includes("발송") ? "#dcfce7" : "#fee2e2", color: verifyMsg.includes("완료") || verifyMsg.includes("발송") ? "#16a34a" : "#dc2626" }}>
+                {verifyMsg}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold block mb-1" style={{ color: "var(--text-secondary)" }}>핸드폰 번호</label>
+                <input value={verifyPhone} onChange={e => setVerifyPhone(e.target.value)} placeholder="01012345678" maxLength={11}
+                  className="w-full h-9 px-3 rounded text-[14px] mb-1.5" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                <button onClick={handleSendCode} disabled={verifyCooldown > 0 || !verifyPhone.trim()}
+                  className="w-full h-9 rounded text-[13px] font-bold text-white" style={{ background: verifyCooldown > 0 ? "#9ca3af" : "var(--brand)" }}>
+                  {verifyCooldown > 0 ? `${verifyCooldown}초 후 재발송` : verifySent ? "인증번호 재발송" : "인증번호 발송"}
+                </button>
+              </div>
+
+              {verifySent && (
+                <div>
+                  <label className="text-[11px] font-bold block mb-1" style={{ color: "var(--text-secondary)" }}>인증번호 6자리</label>
+                  <input value={verifyCode} onChange={e => setVerifyCode(e.target.value)} placeholder="123456" maxLength={6}
+                    className="w-full h-9 px-3 rounded text-[14px] text-center tracking-widest font-mono mb-1.5" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                  <button onClick={handleVerifyCode} disabled={verifying || verifyCode.length < 6}
+                    className="w-full h-9 rounded text-[13px] font-bold text-white" style={{ background: "var(--brand)" }}>
+                    {verifying ? "확인 중..." : "인증 확인"}
+                  </button>
+                  <p className="text-[10px] mt-1" style={{ color: "var(--text-secondary)" }}>5분 내에 입력해주세요. 5회 실패 시 재발송이 필요합니다.</p>
+                </div>
+              )}
+            </div>
+
+            <button onClick={() => setShowVerify(false)} className="w-full mt-4 py-2 rounded text-[13px] font-bold" style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

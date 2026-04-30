@@ -38,11 +38,11 @@ export default function AuthModal({ defaultTab = "login", onClose, onSuccess }: 
   // ── 회원가입 ──
   const [regForm, setRegForm] = useState({
     username: "", password: "", passwordConfirm: "",
-    nickname: "", name: "", phone: "", email: "", referredBy: "",
+    nickname: "", name: "", phone: "", email: "", birthDate: "", referredBy: "",
   });
   const [regError, setRegError] = useState("");
   const [regLoading, setRegLoading] = useState(false);
-  const [setting, setSetting] = useState({ requireName: false, requirePhone: false, requireEmail: false });
+  const [setting, setSetting] = useState({ requireName: false, requirePhone: false, requireEmail: false, requireBirthDate: false });
   const [usernameCheck, setUsernameCheck] = useState<CheckState>({ status: "idle", message: "" });
   const [nicknameCheck, setNicknameCheck] = useState<CheckState>({ status: "idle", message: "" });
 
@@ -230,6 +230,15 @@ export default function AuthModal({ defaultTab = "login", onClose, onSuccess }: 
               {setting.requireEmail && (
                 <input className={inputBase} style={inputStyle} type="email" placeholder="이메일" value={regForm.email}
                   onChange={e => setRegForm(f => ({ ...f, email: e.target.value }))} />
+              )}
+              {setting.requireBirthDate && (
+                <div>
+                  <label className="text-[11px] block mb-1" style={{ color: "var(--text-secondary)" }}>생년월일 (등록 후 변경 불가)</label>
+                  <input className={inputBase} style={inputStyle} type="date"
+                    max={new Date().toISOString().slice(0, 10)}
+                    value={regForm.birthDate}
+                    onChange={e => setRegForm(f => ({ ...f, birthDate: e.target.value }))} />
+                </div>
               )}
 
               {/* 추천인 (항상 선택사항) */}

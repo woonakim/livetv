@@ -60,7 +60,22 @@ tar czf "${TODAY_DIR}/static.tar.gz" \
   2>/dev/null
 echo "[backup] 정적 파일 완료: $(du -sh ${TODAY_DIR}/static.tar.gz 2>/dev/null | awk '{print $1}')"
 
-# 5. 7일 이상 된 백업 삭제
+# 5. 소스 코드 tarball (node_modules/.next/.git 제외)
+echo "[backup] 소스 코드..."
+tar czf "${TODAY_DIR}/source.tar.gz" \
+  --exclude=node_modules \
+  --exclude=.next \
+  --exclude=.git \
+  --exclude=public/uploads \
+  --exclude=public/team-logos \
+  -C /root livetv 2>/dev/null
+if [ -s "${TODAY_DIR}/source.tar.gz" ]; then
+  echo "[backup] 소스 백업 완료: $(du -sh ${TODAY_DIR}/source.tar.gz | awk '{print $1}')"
+else
+  echo "[backup] ⚠️ 소스 백업 실패"
+fi
+
+# 6. 7일 이상 된 백업 삭제
 echo "[backup] 오래된 백업 정리..."
 find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d -mtime +7 -exec rm -rf {} \;
 

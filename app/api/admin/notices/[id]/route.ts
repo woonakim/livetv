@@ -1,6 +1,8 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { sanitize } from "@/lib/sanitize";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getSession();
@@ -11,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const id = parseInt(params.id);
   const data: Record<string, unknown> = {};
   if (body.title !== undefined) data.title = body.title;
-  if (body.content !== undefined) data.content = body.content;
+  if (body.content !== undefined) data.content = sanitize(body.content);
   if (body.author !== undefined) data.author = body.author;
   if (body.isPinned !== undefined) data.isPinned = body.isPinned;
   if (body.isActive !== undefined) data.isActive = body.isActive;

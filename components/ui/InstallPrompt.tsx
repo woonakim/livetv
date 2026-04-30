@@ -60,14 +60,7 @@ export default function InstallPrompt() {
       setDeferredPrompt(null);
       return;
     }
-    // iOS/기타: navigator.share로 공유 시트 (홈화면 추가 옵션 포함)
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "라이브TV", url: window.location.origin });
-      } catch {}
-      return;
-    }
-    // 폴백: iOS 가이드 모달
+    // iOS: 이미지 가이드 모달
     if (isIOS) {
       setShowIOSGuide(true);
       return;
@@ -164,42 +157,27 @@ export default function InstallPrompt() {
         </div>
       </div>
 
-      {/* iOS 가이드 모달 */}
+      {/* iOS 가이드 모달 — 이미지 가이드 */}
       {showIOSGuide && (
-        <div
-          className="fixed inset-0 z-[90] flex items-end justify-center pb-20 lg:hidden"
-          onClick={handleDismiss}
-        >
-          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.6)" }} />
-          <div
-            className="relative w-[90%] max-w-sm rounded-2xl p-5"
-            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-[15px] font-bold mb-3" style={{ color: "var(--text-primary)" }}>
-              홈 화면에 추가하기
-            </p>
-            <div className="space-y-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
-              <div className="flex items-start gap-3">
-                <span className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[12px] font-bold text-white" style={{ background: "var(--brand)" }}>1</span>
-                <p>하단의 <i className="fas fa-share-square" style={{ color: "var(--brand)" }} /> <strong style={{ color: "var(--text-primary)" }}>공유 버튼</strong>을 탭하세요</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[12px] font-bold text-white" style={{ background: "var(--brand)" }}>2</span>
-                <p><strong style={{ color: "var(--text-primary)" }}>홈 화면에 추가</strong>를 탭하세요</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[12px] font-bold text-white" style={{ background: "var(--brand)" }}>3</span>
-                <p>우측 상단 <strong style={{ color: "var(--text-primary)" }}>추가</strong>를 탭하면 완료!</p>
-              </div>
+        <div className="fixed inset-0 z-[9999] flex flex-col lg:hidden" onClick={handleDismiss}>
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.85)" }} />
+          <div className="relative flex-1 flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: "rgba(0,0,0,0.5)" }}>
+              <span className="text-[14px] font-bold text-white">홈 화면에 추가 가이드</span>
+              <button onClick={handleDismiss} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white" style={{ background: "rgba(255,255,255,0.1)" }}>✕</button>
             </div>
-            <button
-              onClick={handleDismiss}
-              className="w-full mt-4 py-2.5 rounded-lg text-[13px] font-bold text-white"
-              style={{ background: "var(--brand)" }}
-            >
-              확인
-            </button>
+            {/* 이미지 스크롤 영역 */}
+            <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/guide/ios-install-guide.png" alt="홈 화면 추가 가이드" className="w-full" style={{ maxWidth: 500, margin: "0 auto", display: "block" }} />
+            </div>
+            {/* 하단 버튼 */}
+            <div className="px-4 py-3 shrink-0" style={{ background: "rgba(0,0,0,0.5)" }}>
+              <button onClick={handleDismiss} className="w-full py-3 rounded-xl text-[14px] font-bold text-white" style={{ background: "var(--brand)" }}>
+                확인했습니다
+              </button>
+            </div>
           </div>
         </div>
       )}

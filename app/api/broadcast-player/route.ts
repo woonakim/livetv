@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 
 function escapeHtml(value: string) {
@@ -7,6 +8,16 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+// <script> 태그 내부에 JSON을 안전하게 임베드 (JSON-in-HTML XSS 방지)
+function safeJsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 }
 
 export async function GET(req: NextRequest) {
@@ -21,7 +32,8 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Missing src", { status: 400 });
   }
 
-  const proxiedSrc = `/api/stream?url=${encodeURIComponent(src)}`;
+  // Cloudflare가 서버 프록시를 차단하므로 브라우저가 직접 m3u8을 로드
+  const playSrc = src;
   const html = `<!doctype html>
 <html lang="ko">
   <head>
@@ -81,7 +93,7 @@ export async function GET(req: NextRequest) {
       const video = document.getElementById("player");
       const loading = document.getElementById("loading");
       const poster = document.getElementById("poster");
-      const src = ${JSON.stringify(proxiedSrc)};
+      const src = ${safeJsonForScript(playSrc)};
 
       const hideLoading = () => {
         loading.style.display = "none";
@@ -93,24 +105,44 @@ export async function GET(req: NextRequest) {
       video.addEventListener("canplay", hideLoading);
       video.addEventListener("waiting", showLoading);
 
+      let fatalRetries = 0;
+      const showError = (msg) => {
+        loading.innerHTML = '<div style="color:#f87171;font-size:13px;padding:16px;text-align:center">' + msg + '</div>';
+        loading.style.display = "flex";
+      };
+
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
         video.play().catch(() => {});
+        video.addEventListener("error", () => showError("재생 실패: 스트림에 접근할 수 없습니다."));
       } else if (window.Hls && window.Hls.isSupported()) {
         const hls = new window.Hls({
           enableWorker: true,
           lowLatencyMode: true,
           startLevel: 0,
           testBandwidth: false,
+          manifestLoadingMaxRetry: 2,
+          levelLoadingMaxRetry: 2,
+          fragLoadingMaxRetry: 3,
         });
         hls.loadSource(src);
         hls.attachMedia(video);
         hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
           video.play().catch(() => {});
         });
+        hls.on(window.Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            fatalRetries++;
+            if (fatalRetries >= 2) {
+              hls.destroy();
+              showError("재생 실패: 스트림 서버에 접근할 수 없습니다.<br/>(CORS 또는 Cloudflare 차단 가능성)");
+            }
+          }
+        });
       } else {
         video.src = src;
         video.play().catch(() => {});
+        video.addEventListener("error", () => showError("이 브라우저는 HLS 재생을 지원하지 않습니다."));
       }
     </script>
   </body>

@@ -7,6 +7,7 @@ import { fetchYouTubeHighlights } from "@/lib/youtube";
 import HighlightsSection from "@/components/ui/HighlightsSection";
 import LiveGamesSection from "@/components/ui/LiveGamesSection";
 import StandingsWidget from "@/components/ui/StandingsWidget";
+import NoticeTicker from "@/components/ui/NoticeTicker";
 import { prisma } from "@/lib/prisma";
 
 const MOCK_POINTS = [
@@ -45,7 +46,7 @@ function Divider() {
   return <div className="w-full" style={{ height: 10, background: "var(--bg)" }} />;
 }
 
-export const revalidate = 1800; // 30분마다 갱신
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const [highlights, events] = await Promise.all([
@@ -71,16 +72,7 @@ export default async function HomePage() {
         <MainVideoSection />
 
         {/* 공지 */}
-        <div className="rounded-md h-7 flex items-center px-2 shadow-sm overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-2 w-full overflow-hidden">
-            <i className="fas fa-bullhorn text-xs shrink-0" style={{ color: "var(--brand)" }} />
-            <div className="overflow-hidden flex-grow relative h-full flex items-center">
-              <div className="scrolling-text text-xs font-bold" style={{ color: "var(--text-primary)" }}>
-                라이브Felix에서 EPL · 챔피언스리그 · NBA · KBO · UFC · LOL 무료 고화질 중계를 즐기세요! 매일 출석체크로 포인트를 적립하고 다양한 이벤트에 참여하세요.
-              </div>
-            </div>
-          </div>
-        </div>
+        <NoticeTicker className="rounded-md h-7 flex items-center px-2 shadow-sm overflow-hidden" textClass="text-xs font-bold" />
 
         {/* 배너 */}
         <div className="flex justify-center gap-2">
@@ -120,16 +112,7 @@ export default async function HomePage() {
         <LiveBanner />
 
         {/* ② 공지 티커 */}
-        <div className="m-2 p-2 px-3 rounded overflow-hidden" style={{ background: "var(--surface)", boxShadow: "0 1px 2px 1px rgba(0,0,0,0.15)" }}>
-          <div className="grid items-center gap-2 overflow-hidden" style={{ gridTemplateColumns: "20px 1fr" }}>
-            <i className="fas fa-bullhorn text-[12px]" style={{ color: "var(--brand)" }} />
-            <div className="overflow-hidden">
-              <div className="scrolling-text text-[12px]">
-                라이브Felix에서 EPL · 챔피언스리그 · NBA · KBO · UFC · LOL 무료 고화질 중계를 즐기세요! 매일 출석체크로 포인트를 적립하고 다양한 이벤트에 참여하세요.
-              </div>
-            </div>
-          </div>
-        </div>
+        <NoticeTicker className="m-2 p-2 px-3 rounded overflow-hidden" textClass="text-[12px]" />
 
         {/* ③ 실시간 중계 LIVE (상위 6개) */}
         <div style={{ background: "var(--surface)" }}>

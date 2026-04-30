@@ -55,7 +55,7 @@ async function main() {
   let created = 0;
   let skipped = 0;
   for (const team of TEAMS) {
-    const exists = await prisma.teamLogo.findUnique({ where: { nameKr: team.nameKr } });
+    const exists = await prisma.teamLogo.findUnique({ where: { nameKr_sport: { nameKr: team.nameKr, sport: team.sport } } });
     if (exists) {
       skipped++;
       continue;

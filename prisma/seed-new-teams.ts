@@ -96,7 +96,7 @@ async function main() {
     if (!fs.existsSync(filepath)) { skipped++; continue; }
     const logoPath = `/team-logos/${filename}`;
     await prisma.teamLogo.upsert({
-      where: { nameKr: t.nameKr },
+      where: { nameKr_sport: { nameKr: t.nameKr, sport: t.sport } },
       create: { ...t, logoPath },
       update: { nameEn: t.nameEn, logoPath, sport: t.sport, league: t.league },
     });

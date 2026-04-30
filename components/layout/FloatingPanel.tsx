@@ -51,11 +51,13 @@ export default function FloatingPanel({ user, onLogout, onOpenLogin, onOpenRegis
 
   useEffect(() => {
     const socket = getSocket();
+    let loaded = false;
 
     socket.on("chat:init", (data: ChatMsg[]) => {
       setChatMessages(data);
       setChatLoaded(true);
       scrollToBottom();
+      loaded = true;
     });
 
     socket.on("chat:message", (msg: ChatMsg) => {
@@ -75,7 +77,23 @@ export default function FloatingPanel({ user, onLogout, onOpenLogin, onOpenRegis
       setPinnedMessages(pinned);
     });
 
+    // 이미 연결된 상태면 chat:init을 못 받을 수 있음 → REST fallback
+    const fallbackTimer = setTimeout(() => {
+      if (!loaded) {
+        fetch("/api/chat").then(r => r.json()).then(data => {
+          if (!loaded) {
+            setChatMessages(data.messages || []);
+            setPinnedMessages(data.pinned || []);
+            setChatLoaded(true);
+            scrollToBottom();
+            loaded = true;
+          }
+        }).catch(() => { setChatLoaded(true); });
+      }
+    }, 2000);
+
     return () => {
+      clearTimeout(fallbackTimer);
       socket.off("chat:init");
       socket.off("chat:message");
       socket.off("online:count");

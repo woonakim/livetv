@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -7,7 +8,7 @@ let cachedGnewsKey: { key: string; ts: number } | null = null;
 async function getGnewsKey(): Promise<string> {
   if (cachedGnewsKey && Date.now() - cachedGnewsKey.ts < 600000) return cachedGnewsKey.key;
   const s = await prisma.siteSetting.findUnique({ where: { id: 1 } });
-  const key = s?.gnewsApiKey || "f080b569c6713b091aee473593fe177b"; // fallback
+  const key = s?.gnewsApiKey || process.env.GNEWS_API_KEY || "";
   cachedGnewsKey = { key, ts: Date.now() };
   return key;
 }

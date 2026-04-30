@@ -18,6 +18,14 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: "파일 필요" }, { status: 400 });
     if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: "5MB 이하만 업로드 가능" }, { status: 400 });
 
+    // 확장자 + MIME 검증 (XSS 방지)
+    const ALLOWED_EXTS = ["jpg", "jpeg", "png", "gif", "webp"];
+    const ALLOWED_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!ALLOWED_EXTS.includes(ext) || !ALLOWED_MIMES.includes(file.type)) {
+      return NextResponse.json({ error: "이미지 파일만 업로드 가능합니다 (jpg/png/gif/webp)" }, { status: 400 });
+    }
+
     const isAdmin = session.role === "ADMIN" || session.role === "SUPERADMIN";
 
     // 관리자가 profileId로 다른 BJ 아바타 업로드
@@ -33,7 +41,6 @@ export async function POST(req: NextRequest) {
     const dir = path.join(process.cwd(), "public", "uploads", "bj-avatar");
     await mkdir(dir, { recursive: true });
 
-    const ext = file.name.split(".").pop()?.toLowerCase() || "png";
     const filename = `bj_${targetProfileId}_${Date.now()}.${ext}`;
     const savePath = path.join(dir, filename);
 

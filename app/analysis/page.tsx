@@ -15,6 +15,7 @@ interface AnalysisItem {
   sport: string;
   league: string;
   matchTime: string;
+  isPast?: boolean;
   home: { name: string; logo: string; record: string };
   away: { name: string; logo: string; record: string };
   title: string;
@@ -49,10 +50,14 @@ export default function AnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ role: string } | null>(null);
   const [logoEnabled, setLogoEnabled] = useState(true);
+  const [allowUserAnalysis, setAllowUserAnalysis] = useState(true);
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => setUser(d.user ?? null)).catch(() => {});
-    fetch("/api/site-settings").then(r => r.json()).then(s => setLogoEnabled(s.showLogoAnalysis ?? true)).catch(() => {});
+    fetch("/api/site-settings").then(r => r.json()).then(s => {
+      setLogoEnabled(s.showLogoAnalysis ?? true);
+      setAllowUserAnalysis(s.allowUserAnalysis !== false);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -64,7 +69,7 @@ export default function AnalysisPage() {
       .finally(() => setLoading(false));
   }, [selectedSport]);
 
-  const canWrite = user && ["PICKSTER", "ADMIN", "SUPERADMIN"].includes(user.role);
+  const canWrite = user && (allowUserAnalysis || ["PICKSTER", "ADMIN", "SUPERADMIN"].includes(user.role));
 
   return (
     <>
@@ -132,9 +137,17 @@ export default function AnalysisPage() {
               <Link
                 key={post.id}
                 href={`/analysis/${post.id}`}
-                className="block rounded-lg overflow-hidden transition-opacity hover:opacity-90"
-                style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 1px 3px rgba(8,8,8,0.15)" }}
+                className="block rounded-lg overflow-hidden transition-opacity hover:opacity-90 relative"
+                style={{
+                  background: "var(--surface)",
+                  border: `1px solid ${post.isPast ? "var(--border)" : "var(--border)"}`,
+                  boxShadow: "0 1px 3px rgba(8,8,8,0.15)",
+                  opacity: post.isPast ? 0.45 : 1,
+                }}
               >
+                {post.isPast && (
+                  <div className="absolute top-2 left-2 z-10 text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: "#6b7280", color: "#fff" }}>경기종료</div>
+                )}
                 <div className="relative px-4 pt-3 pb-4" style={{ minHeight: 120 }}>
                   <div className="absolute top-3 left-0 right-0 text-center text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>
                     {post.league}
