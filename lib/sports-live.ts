@@ -69,8 +69,9 @@ interface GalaxyItem {
 }
 
 function parseTeams(name: string): { home: string; away: string } {
-  const parts = name.split(/\s+vs\s+/i);
-  if (parts.length >= 2) {
+  // 공백 어느 쪽 누락이어도 허용: "A vs B", "A vsB", "A vs  B"
+  const parts = name.split(/\s+vs\s*|\s*vs\s+/i);
+  if (parts.length >= 2 && parts[0].trim() && parts[1].trim()) {
     return { home: parts[0].trim(), away: parts[1].trim() };
   }
   return { home: name, away: "" };

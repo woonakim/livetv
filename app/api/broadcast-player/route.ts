@@ -95,35 +95,72 @@ export async function GET(req: NextRequest) {
       const poster = document.getElementById("poster");
       const src = ${safeJsonForScript(playSrc)};
 
+      const MAX_HARD_RETRIES = 8;       // 최대 전체 재로드 횟수 (그 이후엔 에러 표시)
+      const STALL_LIMIT_SEC = 6;        // 버퍼 정체 N초 → liveSync로 점프
+      let hardRetries = 0;
+      let hls = null;
+
       const hideLoading = () => {
         loading.style.display = "none";
         if (poster) poster.style.display = "none";
       };
-      const showLoading = () => { loading.style.display = "flex"; };
-
-      video.addEventListener("playing", hideLoading);
-      video.addEventListener("canplay", hideLoading);
-      video.addEventListener("waiting", showLoading);
-
-      let fatalRetries = 0;
+      const showLoading = (msg) => {
+        if (msg) {
+          loading.innerHTML = '<div class="spinner"></div><div>' + msg + '</div>';
+        }
+        loading.style.display = "flex";
+      };
       const showError = (msg) => {
         loading.innerHTML = '<div style="color:#f87171;font-size:13px;padding:16px;text-align:center">' + msg + '</div>';
         loading.style.display = "flex";
       };
 
-      if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = src;
-        video.play().catch(() => {});
-        video.addEventListener("error", () => showError("재생 실패: 스트림에 접근할 수 없습니다."));
-      } else if (window.Hls && window.Hls.isSupported()) {
-        const hls = new window.Hls({
+      video.addEventListener("playing", () => { hideLoading(); hardRetries = 0; });
+      video.addEventListener("canplay", hideLoading);
+      video.addEventListener("waiting", () => showLoading("연결 중..."));
+
+      // ── 정체 감지: currentTime이 N초 동안 변화 없으면 LIVE 끝으로 점프 ──
+      let lastTime = 0;
+      let stalledFor = 0;
+      setInterval(() => {
+        if (!video.paused && !video.ended && video.readyState >= 2) {
+          if (video.currentTime === lastTime) {
+            stalledFor++;
+            if (stalledFor >= STALL_LIMIT_SEC) {
+              // LIVE 끝점으로 점프하여 복구 시도
+              try {
+                if (hls && typeof hls.liveSyncPosition === "number" && isFinite(hls.liveSyncPosition)) {
+                  video.currentTime = hls.liveSyncPosition;
+                } else if (video.seekable.length > 0) {
+                  video.currentTime = video.seekable.end(video.seekable.length - 1);
+                }
+              } catch {}
+              stalledFor = 0;
+            }
+          } else {
+            stalledFor = 0;
+          }
+          lastTime = video.currentTime;
+        }
+      }, 1000);
+
+      // ── HLS.js 경로 ──
+      const initHls = () => {
+        if (hls) { try { hls.destroy(); } catch {} hls = null; }
+        hls = new window.Hls({
           enableWorker: true,
           lowLatencyMode: true,
-          startLevel: 0,
-          testBandwidth: false,
-          manifestLoadingMaxRetry: 2,
-          levelLoadingMaxRetry: 2,
-          fragLoadingMaxRetry: 3,
+          backBufferLength: 30,
+          // 재시도 강화 (네트워크 끊김 → 자동 복구)
+          manifestLoadingMaxRetry: 6,
+          manifestLoadingRetryDelay: 1000,
+          manifestLoadingMaxRetryTimeout: 64000,
+          levelLoadingMaxRetry: 6,
+          levelLoadingRetryDelay: 1000,
+          levelLoadingMaxRetryTimeout: 64000,
+          fragLoadingMaxRetry: 6,
+          fragLoadingRetryDelay: 1000,
+          fragLoadingMaxRetryTimeout: 64000,
         });
         hls.loadSource(src);
         hls.attachMedia(video);
@@ -131,14 +168,52 @@ export async function GET(req: NextRequest) {
           video.play().catch(() => {});
         });
         hls.on(window.Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) {
-            fatalRetries++;
-            if (fatalRetries >= 2) {
-              hls.destroy();
-              showError("재생 실패: 스트림 서버에 접근할 수 없습니다.<br/>(CORS 또는 Cloudflare 차단 가능성)");
-            }
+          if (!data.fatal) return;
+          // 1) 네트워크 fatal → 잠시 후 startLoad 재시도
+          if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
+            showLoading("연결 재시도 중...");
+            setTimeout(() => { try { hls.startLoad(); } catch {} }, 2000);
+            return;
+          }
+          // 2) 미디어 fatal → recoverMediaError (HLS.js 내장)
+          if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
+            showLoading("디코더 복구 중...");
+            try { hls.recoverMediaError(); return; } catch {}
+          }
+          // 3) 그 외 fatal → 전체 재로드 (백오프)
+          hardRetries++;
+          if (hardRetries <= MAX_HARD_RETRIES) {
+            const delay = Math.min(2000 * hardRetries, 15000);
+            showLoading("재연결 중... (" + hardRetries + "/" + MAX_HARD_RETRIES + ")");
+            setTimeout(initHls, delay);
+          } else {
+            try { hls.destroy(); } catch {}
+            showError("재생 실패: 스트림 서버에 장시간 접근 불가.<br/>잠시 후 새로고침해주세요.");
           }
         });
+      };
+
+      // ── Native HLS (Safari/iOS) 경로 — error 시 자동 reload ──
+      const initNative = () => {
+        video.src = src;
+        video.play().catch(() => {});
+        const onErr = () => {
+          hardRetries++;
+          if (hardRetries <= MAX_HARD_RETRIES) {
+            const delay = Math.min(2000 * hardRetries, 15000);
+            showLoading("재연결 중... (" + hardRetries + "/" + MAX_HARD_RETRIES + ")");
+            setTimeout(() => { video.load(); video.play().catch(() => {}); }, delay);
+          } else {
+            showError("재생 실패: 스트림 서버에 장시간 접근 불가.<br/>잠시 후 새로고침해주세요.");
+          }
+        };
+        video.addEventListener("error", onErr);
+      };
+
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        initNative();
+      } else if (window.Hls && window.Hls.isSupported()) {
+        initHls();
       } else {
         video.src = src;
         video.play().catch(() => {});
