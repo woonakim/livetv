@@ -627,7 +627,7 @@ function PlayerSlot({
           className="text-white/60 hover:text-white text-sm px-1 pointer-events-auto"
         >✕</button>
       </div>
-      <div className="absolute top-1 right-1 sm:hidden flex items-center gap-1 max-w-[62%] px-1.5 py-1 rounded pointer-events-none z-10" style={{ background: "rgba(0,0,0,0.55)" }}>
+      <div className="absolute bottom-1 right-1 sm:hidden flex items-center gap-1 max-w-[72%] px-1.5 py-1 rounded pointer-events-none z-10" style={{ background: "rgba(0,0,0,0.55)" }}>
         <span className="text-[8px] font-bold px-1 py-0.5 rounded text-white shrink-0" style={{ background: "#dc2626" }}>
           {match.isLive ? "LIVE" : "대기"}
         </span>

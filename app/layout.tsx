@@ -1,5 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+
+// 모바일 키보드가 layout viewport를 변경하도록 — iOS/Android 모두 적용
+// 키보드 닫혔을 때 화면 복귀가 정상적으로 작동
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
 import LayoutSwitch from "@/components/layout/LayoutSwitch";
 import { prisma } from "@/lib/prisma";
 import Script from "next/script";

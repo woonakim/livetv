@@ -17,6 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.author !== undefined) data.author = body.author;
   if (body.isPinned !== undefined) data.isPinned = body.isPinned;
   if (body.isActive !== undefined) data.isActive = body.isActive;
+  if (body.viewCount !== undefined) data.viewCount = Math.max(0, parseInt(body.viewCount) || 0);
   const updated = await prisma.eventBoard.update({ where: { id }, data });
   return NextResponse.json(updated);
 }

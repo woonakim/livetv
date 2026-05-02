@@ -30,6 +30,7 @@ const MENU: (MenuItem | MenuGroup)[] = [
       { label: "팝업 관리", href: "/admin/popups", icon: "fas fa-window-restore" },
       { label: "한줄공지", href: "/admin/ticker", icon: "fas fa-scroll" },
       { label: "자동 분석", href: "/admin/auto-analysis", icon: "fas fa-robot" },
+      { label: "분석글 관리", href: "/admin/analysis-posts", icon: "fas fa-newspaper" },
     ],
   },
   {

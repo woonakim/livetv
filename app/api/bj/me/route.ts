@@ -46,6 +46,10 @@ export async function PUT(req: NextRequest) {
   if (body.bannerText !== undefined) data.bannerText = body.bannerText;
   if (body.pinnedMessage !== undefined) data.pinnedMessage = body.pinnedMessage;
   if (body.systemMessages !== undefined) data.systemMessages = typeof body.systemMessages === "string" ? body.systemMessages : JSON.stringify(body.systemMessages);
+  if (body.bufferLatency !== undefined) {
+    const v = parseFloat(body.bufferLatency);
+    if (!isNaN(v)) data.bufferLatency = Math.max(1.5, Math.min(10, v));
+  }
 
   await prisma.bjProfile.update({ where: { id: profile.id }, data });
   return NextResponse.json({ ok: true });

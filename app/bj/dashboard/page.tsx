@@ -8,11 +8,13 @@ interface BjProfile {
   category: string; thumbnail: string; offlineMsg: string; isLive: boolean; isApproved: boolean;
   isActive: boolean; viewCount: number; avatar: string; avatarType: string; statusMessage: string;
   bannerUrl: string; bannerText: string; pinnedMessage: string; systemMessages: string;
+  bufferLatency?: number;
 }
 
 interface SystemMsg { text: string; intervalMin: number; }
 interface ChatBan { id: number; userId: number; nickname: string; createdAt: string; }
 interface ChatManager { id: number; userId: number; nickname: string; createdAt: string; }
+interface StreamStats { live: boolean; recvKbps: number; width: number; height: number; videoCodec: string; audioCodec: string; }
 
 const RTMP_URL = "rtmp://38.180.201.85:1935/live";
 const EMOJI_LIST = ["👑", "🎬", "🎤", "🔥", "⭐", "💎", "🏆", "🎯", "🦁", "🐯", "🦊", "🐻", "🎮", "⚽", "🏀", "⚾", "🎸", "🎵", "💜", "💙"];
@@ -38,6 +40,8 @@ export default function BjDashboardPage() {
   const [chatBans, setChatBans] = useState<ChatBan[]>([]);
   const [managers, setManagers] = useState<ChatManager[]>([]);
   const [managerInput, setManagerInput] = useState("");
+  const [streamStats, setStreamStats] = useState<StreamStats | null>(null);
+  const [bufferLatency, setBufferLatency] = useState(3.5);
   const avatarFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -54,11 +58,27 @@ export default function BjDashboardPage() {
       setBannerUrl(data.bannerUrl || "");
       setBannerText(data.bannerText || "가입문의");
       setPinnedMessage(data.pinnedMessage || "");
+      setBufferLatency(typeof data.bufferLatency === "number" ? data.bufferLatency : 3.5);
       try { setSystemMsgs(JSON.parse(data.systemMessages || "[]")); } catch { setSystemMsgs([]); }
       fetch(`/api/bj/chat/ban?bjId=${data.id}`).then(r => r.json()).then(setChatBans).catch(() => {});
       fetch(`/api/bj/chat/manager?bjId=${data.id}`).then(r => r.json()).then(setManagers).catch(() => {});
     }).catch(() => router.push("/")).finally(() => setLoading(false));
   }, [router]);
+
+  // 회선 상태 폴링 — 방송 중일 때만 5초마다 SRS incoming bitrate 조회
+  useEffect(() => {
+    if (!profile?.isLive) { setStreamStats(null); return; }
+    let alive = true;
+    const fetchStats = () => {
+      fetch("/api/bj/stream-stats")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (alive && d) setStreamStats(d); })
+        .catch(() => {});
+    };
+    fetchStats();
+    const t = setInterval(fetchStats, 5000);
+    return () => { alive = false; clearInterval(t); };
+  }, [profile?.isLive]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -153,6 +173,34 @@ export default function BjDashboardPage() {
               <p className="text-2xl font-black">{profile.isLive ? "● LIVE 방송 중" : "방송 대기"}</p>
               <p className="text-sm mt-1 opacity-80">누적 시청: {profile.viewCount.toLocaleString()}회</p>
             </div>
+            {profile.isLive && streamStats?.live && (
+              <div className="text-right shrink-0">
+                <p className="text-[11px] opacity-70">업로드 비트레이트 (30초 평균)</p>
+                <p className="text-lg font-black">{streamStats.recvKbps.toLocaleString()} kbps</p>
+                {streamStats.width > 0 && <p className="text-[10px] opacity-60">{streamStats.width}×{streamStats.height} {streamStats.videoCodec}</p>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 회선 불안정 경고 — 방송 중 + incoming bitrate < 3 Mbps */}
+      {profile.isLive && streamStats?.live && streamStats.recvKbps > 0 && streamStats.recvKbps < 3000 && (
+        <div className="rounded-xl p-4" style={{ background: "#fef2f2", border: "1px solid #f87171" }}>
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">⚠️</span>
+            <div className="flex-1">
+              <p className="text-base font-black" style={{ color: "#991b1b" }}>회선 불안정 감지</p>
+              <p className="text-sm mt-1" style={{ color: "#b91c1c" }}>
+                현재 업로드 비트레이트가 <strong>{streamStats.recvKbps.toLocaleString()} kbps</strong>로 낮습니다. 시청자에게 끊김이 발생할 수 있습니다.
+              </p>
+              <ul className="text-[12px] mt-2 space-y-0.5 list-disc pl-4" style={{ color: "#7f1d1d" }}>
+                <li>OBS → 출력 → 비트레이트를 <strong>3500~5000 kbps</strong>로 설정</li>
+                <li>업로드 회선 속도가 8 Mbps 이상인지 확인 (fast.com)</li>
+                <li>인코더 키프레임 간격 <strong>2초</strong>로 설정</li>
+                <li>다른 프로그램의 업로드 사용량을 줄여보세요</li>
+              </ul>
+            </div>
           </div>
         </div>
       )}
@@ -185,6 +233,52 @@ export default function BjDashboardPage() {
           </div>
         </div>
       </div>}
+
+      {/* 방송 딜레이 (시청자 버퍼) — 승인된 BJ만 */}
+      {profile.isApproved && (
+        <div className="rounded-lg p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+          <h2 className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>방송 딜레이</h2>
+          <p className="text-[11px] mb-3" style={{ color: "var(--text-secondary)" }}>
+            시청자 측 버퍼 크기. 짧을수록 실시간성 ↑ / 회선 출렁일 때 끊김 ↑. 길수록 안정 / 채팅 스포 방지 효과.
+          </p>
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {[
+              { label: "저지연", v: 1.5, desc: "실시간 우선" },
+              { label: "표준", v: 3.5, desc: "권장 기본값" },
+              { label: "안정", v: 8.0, desc: "끊김 최소" },
+            ].map(p => (
+              <button key={p.v} onClick={() => setBufferLatency(p.v)}
+                className="py-3 rounded-lg text-center transition-all"
+                style={{
+                  background: Math.abs(bufferLatency - p.v) < 0.05 ? "var(--brand)" : "var(--bg)",
+                  color: Math.abs(bufferLatency - p.v) < 0.05 ? "#fff" : "var(--text-primary)",
+                  border: "1px solid " + (Math.abs(bufferLatency - p.v) < 0.05 ? "var(--brand)" : "var(--border)"),
+                }}>
+                <div className="text-[13px] font-bold">{p.label}</div>
+                <div className="text-[10px] mt-0.5 opacity-80">{p.v}초 · {p.desc}</div>
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className="text-[11px] font-bold block mb-1" style={{ color: "var(--text-secondary)" }}>직접 입력 (1.5 ~ 10초)</label>
+            <div className="flex items-center gap-2">
+              <input type="number" min={1.5} max={10} step={0.5} value={bufferLatency}
+                onChange={e => setBufferLatency(Math.max(1.5, Math.min(10, parseFloat(e.target.value) || 3.5)))}
+                className="w-24 rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>초</span>
+              <button onClick={async () => {
+                setSaving(true);
+                await fetch("/api/bj/me", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bufferLatency }) });
+                setSaving(false);
+                alert("방송 딜레이가 저장되었습니다. 새로 들어오는 시청자부터 적용됩니다.");
+              }} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-bold text-white" style={{ background: "var(--brand)" }}>
+                {saving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+            <p className="text-[10px] mt-2" style={{ color: "var(--text-secondary)" }}>※ 저장 후 새로고침한 시청자부터 새 딜레이가 적용됩니다. 이미 시청 중인 사람은 기존 설정 유지.</p>
+          </div>
+        </div>
+      )}
 
       {/* 프로필 아바타 설정 */}
       <div className="rounded-lg p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>

@@ -11,6 +11,7 @@ import FloatingPanel from "./FloatingPanel";
 // import GoldAccentPanel from "@/components/ui/GoldAccentPanel";
 import InstallPrompt from "@/components/ui/InstallPrompt";
 import AccessTracker from "@/components/ui/AccessTracker";
+import { resetSocket } from "@/lib/socket";
 
 const NAV_ICON_MAP: Record<string, string> = {
   "스폰업체": "spon",
@@ -38,11 +39,11 @@ const DESKTOP_NAV = [
   },
   {
     label: "스포츠 분석",
-    href: "/analysis/premium",
+    href: "/analysis",
     svgIcon: "/svg_logo/icon-svg-04.svg",
     sub: [
-      { label: "프리미엄분석", href: "/analysis/premium" },
       { label: "분석 포스트",   href: "/analysis" },
+      { label: "프리미엄분석", href: "/analysis/premium" },
     ],
   },
   {
@@ -64,8 +65,9 @@ const DESKTOP_NAV = [
     href: "/events",
     svgIcon: "/svg_logo/icon-svg-08.svg",
     sub: [
-      { label: "이벤트매치", href: "/events" },
-      { label: "출석체크",   href: "/attendance" },
+      { label: "이벤트매치",   href: "/events" },
+      { label: "출석체크",     href: "/attendance" },
+      { label: "이벤트게시판", href: "/events/board" },
     ],
   },
   {
@@ -153,7 +155,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   const fetchUser = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me");
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
       const data = await res.json();
       setUser(data.user ?? null);
     } catch {
@@ -163,14 +165,33 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     }
   }, []);
 
+  // 로그인/로그아웃 후 다른 페이지(라이브 등)에 알림 — auth-changed 브로드캐스트
+  const broadcastAuthChange = useCallback(() => {
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("auth-changed"));
+  }, []);
+
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
+    resetSocket();
     setUser(null);
+    broadcastAuthChange();
     router.push("/");
     router.refresh();
   };
 
   useEffect(() => { fetchUser(); }, [fetchUser]);
+
+  // 다른 페이지(라이브 등)에서 로그인 모달 오픈 요청 — open-login-modal 이벤트 listen
+  useEffect(() => {
+    const onOpenLogin = () => setModal("login");
+    const onOpenRegister = () => setModal("register");
+    window.addEventListener("open-login-modal", onOpenLogin);
+    window.addEventListener("open-register-modal", onOpenRegister);
+    return () => {
+      window.removeEventListener("open-login-modal", onOpenLogin);
+      window.removeEventListener("open-register-modal", onOpenRegister);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg)" }}>
@@ -379,8 +400,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       {/* ── 메인 영역 ── */}
       {pathname.startsWith("/live") ? (
-        /* 라이브 페이지: 사이드바 없이 전체 폭 */
-        <main className="w-full flex-1 pb-[72px] lg:pb-0">
+        /* 라이브 페이지: 사이드바 없이 전체 폭 + 모바일 하단 패딩 제거 */
+        <main className="w-full flex-1 pb-0">
           {children}
         </main>
       ) : (
@@ -390,7 +411,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             <RightSidebar
               user={user}
               authReady={authReady}
-              onLoginSuccess={() => { fetchUser(); }}
+              onLoginSuccess={() => { resetSocket(); fetchUser(); broadcastAuthChange(); }}
               onOpenRegister={() => setModal("register")}
               onLogout={handleLogout}
             />
@@ -459,9 +480,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
       )}
 
-      {/* ── 모바일 하단 네비게이션 (lg 이상 숨김) ── */}
+      {/* ── 모바일 하단 네비게이션 (lg 이상 숨김, /live는 전체 숨김) ── */}
       <nav
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-[70] flex items-stretch"
+        className={`lg:hidden fixed bottom-0 left-0 right-0 z-[70] flex items-stretch ${pathname.startsWith("/live") ? "hidden" : ""}`}
         style={{ height: "56px", background: "var(--surface)", borderTop: "1px solid var(--border)" }}
       >
         {BOTTOM_NAV.map((item) => {
@@ -508,7 +529,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <AuthModal
           defaultTab={modal}
           onClose={() => setModal(null)}
-          onSuccess={() => { fetchUser(); setModal(null); }}
+          onSuccess={() => { resetSocket(); fetchUser(); broadcastAuthChange(); setModal(null); }}
         />
       )}
 
@@ -516,8 +537,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       {/* <ThemePalette /> */}
       {/* <GoldAccentPanel /> */}
 
-      {/* ── 플로팅 패널 (모바일 전용) ── */}
-      {!showMore && (
+      {/* ── 플로팅 패널 (모바일 전용, /live에선 숨김) ── */}
+      {!showMore && !pathname.startsWith("/live") && (
         <FloatingPanel
           user={user}
           onLogout={handleLogout}

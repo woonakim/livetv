@@ -58,6 +58,156 @@ app.prepare().then(() => {
 
   let onlineCount = 0;
 
+  // ═══════════════════════════════════════════════════════════
+  //  가짜 시청자 부풀리기 (공개채팅 + BJ 라이브)
+  //  - 60초마다 SiteSetting/BjProfile 설정 reload
+  //  - 4초마다 (3~5초 jitter) 모든 라이브 BJ + 공개채팅 갱신
+  //  - random walk으로 자연스러운 변동
+  //  - BJ 방송 0~rampSec 구간: 0 → max로 ramp-up
+  // ═══════════════════════════════════════════════════════════
+  let fakeChatCfg = { enabled: false, min: 0, max: 0 };
+  const fakeBjCfg = new Map();   // bjId -> { enabled, min, max, rampSec, liveStartedAt }
+  let chatBoost = 0;             // 현재 공개채팅 boost
+  const bjBoost = new Map();     // bjId -> 현재 boost
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function randInt(lo, hi) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
+
+  // 캐시에 없는 BJ에 대해 즉시 cfg 로드 (방송 시작 직후 viewer 입장 케이스)
+  async function ensureBjCfg(bjId) {
+    if (fakeBjCfg.has(bjId)) return fakeBjCfg.get(bjId);
+    try {
+      const b = await prisma.bjProfile.findUnique({
+        where: { id: bjId },
+        select: { isLive: true, fakeViewersEnabled: true, fakeViewersMin: true, fakeViewersMax: true, fakeViewersRampSec: true, liveStartedAt: true, liveViewers: true },
+      });
+      if (!b || !b.isLive) return null;
+      const cfg = {
+        enabled: !!b.fakeViewersEnabled,
+        min: Math.max(0, b.fakeViewersMin || 0),
+        max: Math.max(0, b.fakeViewersMax || 0),
+        rampSec: Math.max(1, b.fakeViewersRampSec || 600),
+        liveStartedAt: b.liveStartedAt ? new Date(b.liveStartedAt).getTime() : Date.now(),
+        realViewers: b.liveViewers || 0,
+      };
+      fakeBjCfg.set(bjId, cfg);
+      return cfg;
+    } catch { return null; }
+  }
+
+  // 캐시된 boost가 있으면 그대로, 없으면 ramp/walk 로직으로 즉석 계산
+  function getOrComputeBjBoost(bjId, cfg) {
+    if (!cfg || !cfg.enabled || cfg.max <= 0) return 0;
+    const cached = bjBoost.get(bjId);
+    if (cached !== undefined) return cached;
+    const elapsedSec = Math.max(0, (Date.now() - cfg.liveStartedAt) / 1000);
+    let next;
+    if (elapsedSec < cfg.rampSec) {
+      const progress = elapsedSec / cfg.rampSec;
+      const target = Math.round(cfg.min + (cfg.max - cfg.min) * progress);
+      next = clamp(target + randInt(-2, 2), 0, cfg.max);
+    } else {
+      next = randInt(cfg.min, cfg.max);
+    }
+    bjBoost.set(bjId, next);
+    return next;
+  }
+
+  // 채팅 boost 즉석 계산 (필요 시)
+  function getOrComputeChatBoost() {
+    if (!fakeChatCfg.enabled || fakeChatCfg.max <= 0) return 0;
+    if (chatBoost > 0) return chatBoost;
+    chatBoost = randInt(fakeChatCfg.min, fakeChatCfg.max);
+    return chatBoost;
+  }
+
+  // REST API에서 사용할 글로벌 헬퍼
+  global.__getBjDisplayedViewers = async (bjId, realCount) => {
+    const cfg = await ensureBjCfg(bjId);
+    if (!cfg) return realCount;
+    return realCount + getOrComputeBjBoost(bjId, cfg);
+  };
+
+  async function reloadFakeViewerCfg() {
+    try {
+      const s = await prisma.siteSetting.findFirst();
+      if (s) {
+        fakeChatCfg = {
+          enabled: !!s.fakeViewersChatEnabled,
+          min: Math.max(0, s.fakeViewersChatMin || 0),
+          max: Math.max(0, s.fakeViewersChatMax || 0),
+        };
+      }
+      const bjs = await prisma.bjProfile.findMany({
+        where: { isLive: true },
+        select: { id: true, fakeViewersEnabled: true, fakeViewersMin: true, fakeViewersMax: true, fakeViewersRampSec: true, liveStartedAt: true, liveViewers: true },
+      });
+      const liveIds = new Set(bjs.map(b => b.id));
+      for (const b of bjs) {
+        fakeBjCfg.set(b.id, {
+          enabled: !!b.fakeViewersEnabled,
+          min: Math.max(0, b.fakeViewersMin || 0),
+          max: Math.max(0, b.fakeViewersMax || 0),
+          rampSec: Math.max(1, b.fakeViewersRampSec || 600),
+          liveStartedAt: b.liveStartedAt ? new Date(b.liveStartedAt).getTime() : Date.now(),
+          realViewers: b.liveViewers || 0,
+        });
+      }
+      // 라이브 종료된 BJ는 boost 정리
+      for (const k of fakeBjCfg.keys()) if (!liveIds.has(k)) { fakeBjCfg.delete(k); bjBoost.delete(k); }
+    } catch (e) { console.error("[fake-viewers] reload failed:", e.message); }
+  }
+  reloadFakeViewerCfg();
+  setInterval(reloadFakeViewerCfg, 60_000);
+
+  function tickChatBoost() {
+    if (!fakeChatCfg.enabled || fakeChatCfg.max <= 0) {
+      chatBoost = 0;
+      io.emit("viewer:chat", { count: onlineCount, real: onlineCount });
+      return;
+    }
+    const { min, max } = fakeChatCfg;
+    if (chatBoost < min || chatBoost > max) chatBoost = randInt(min, max);
+    else chatBoost = clamp(chatBoost + randInt(-3, 3), min, max);
+    io.emit("viewer:chat", { count: onlineCount + chatBoost, real: onlineCount });
+  }
+
+  function tickBjBoost() {
+    const now = Date.now();
+    for (const [bjId, cfg] of fakeBjCfg) {
+      const real = cfg.realViewers || 0;
+      if (!cfg.enabled || cfg.max <= 0) {
+        bjBoost.set(bjId, 0);
+        io.to(`bj:${bjId}`).emit("viewer:bj", { bjId, count: real, real });
+        continue;
+      }
+      const { min, max, rampSec, liveStartedAt } = cfg;
+      const elapsedSec = Math.max(0, (now - liveStartedAt) / 1000);
+      let prev = bjBoost.get(bjId) ?? 0;
+      let next;
+      if (elapsedSec < rampSec) {
+        // ramp: 0 → max로 progressive
+        const progress = elapsedSec / rampSec;
+        const target = Math.round(min + (max - min) * progress);
+        next = clamp(target + randInt(-2, 2), 0, max);
+      } else {
+        if (prev < min || prev > max) next = randInt(min, max);
+        else next = clamp(prev + randInt(-3, 3), min, max);
+      }
+      bjBoost.set(bjId, next);
+      io.to(`bj:${bjId}`).emit("viewer:bj", { bjId, count: real + next, real });
+    }
+  }
+
+  function fakeViewerTick() {
+    tickChatBoost();
+    tickBjBoost();
+    // 다음 tick: 3~5초 jitter
+    setTimeout(fakeViewerTick, randInt(3000, 5000));
+  }
+  setTimeout(fakeViewerTick, 3000);
+
+
   // 관리자 알림 함수 (외부에서 호출 가능하도록 global에 노출)
   // 1) 사이트 내 알림 (socket.io) — 즉시
   // 2) 텔레그램 봇 알림 — 비동기, SiteSetting의 telegramNotifyEnabled 시
@@ -78,6 +228,8 @@ app.prepare().then(() => {
   io.on("connection", (socket) => {
     onlineCount++;
     io.emit("online:count", onlineCount);
+    // 공개채팅 가짜 시청자 현재값 즉시 전송 (boost 미계산 상태면 즉석 계산)
+    socket.emit("viewer:chat", { count: onlineCount + getOrComputeChatBoost(), real: onlineCount });
 
     // 관리자 room 참가
     socket.on("admin:join", () => {
@@ -145,12 +297,21 @@ app.prepare().then(() => {
       const room = `bj:${bjId}`;
       socket.join(room);
 
-      // 최근 100개 + 고정 메시지
-      const [messages, pinnedMsg] = await Promise.all([
-        prisma.bjChatMessage.findMany({ where: { bjProfileId: bjId }, orderBy: { createdAt: "asc" }, take: 100 }),
+      // 최근 100개를 desc로 가져온 뒤 reverse → 화면은 오래된 → 최신 순
+      // (asc + take 100 시 가장 오래된 100개만 반환되어 신규 메시지 누락되던 버그 수정)
+      const [recent, pinnedMsg] = await Promise.all([
+        prisma.bjChatMessage.findMany({ where: { bjProfileId: bjId }, orderBy: { createdAt: "desc" }, take: 100 }),
         prisma.bjChatMessage.findFirst({ where: { bjProfileId: bjId, isPinned: true } }),
       ]);
+      const messages = recent.reverse();
       socket.emit("bj:init", { messages, pinnedMsg });
+      // 가짜 시청자 현재값 즉시 전송 — 캐시 없거나 boost 미계산이면 즉석 계산
+      const cfg = await ensureBjCfg(bjId);
+      if (cfg) {
+        const real = cfg.realViewers || 0;
+        const boost = getOrComputeBjBoost(bjId, cfg);
+        socket.emit("viewer:bj", { bjId, count: real + boost, real });
+      }
     });
 
     socket.on("bj:leave", ({ bjId }) => {

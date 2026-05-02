@@ -104,10 +104,25 @@ export default function AuthModal({ defaultTab = "login", onClose, onSuccess }: 
   const handleRegSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError("");
-    if (usernameCheck.status !== "ok") { setRegError("아이디 중복 확인을 해주세요."); return; }
-    if (nicknameCheck.status !== "ok") { setRegError("닉네임 중복 확인을 해주세요."); return; }
     setRegLoading(true);
     try {
+      // 디바운스 체크가 끝나기 전 빠른 클릭 대비 — 즉석 동기 검증
+      if (usernameCheck.status !== "ok") {
+        if (regForm.username.length < 4 || regForm.username.length > 12) {
+          setRegError("아이디는 4~12자로 입력해주세요."); return;
+        }
+        const r = await fetch(`/api/auth/check-username?username=${encodeURIComponent(regForm.username)}`).then(x => x.json()).catch(() => null);
+        if (!r?.available) { setRegError(r?.message || "사용 중인 아이디입니다."); setUsernameCheck({ status: "error", message: r?.message || "" }); return; }
+        setUsernameCheck({ status: "ok", message: r.message || "" });
+      }
+      if (nicknameCheck.status !== "ok") {
+        if (regForm.nickname.length < 2 || regForm.nickname.length > 8) {
+          setRegError("닉네임은 2~8자로 입력해주세요."); return;
+        }
+        const r = await fetch(`/api/auth/check-nickname?nickname=${encodeURIComponent(regForm.nickname)}`).then(x => x.json()).catch(() => null);
+        if (!r?.available) { setRegError(r?.message || "사용 중인 닉네임입니다."); setNicknameCheck({ status: "error", message: r?.message || "" }); return; }
+        setNicknameCheck({ status: "ok", message: r.message || "" });
+      }
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

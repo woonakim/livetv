@@ -32,6 +32,8 @@ export default function RightSidebar({ user, authReady, onLoginSuccess, onOpenRe
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
+  const [chatViewerCount, setChatViewerCount] = useState(0);
+  const [chatViewerReal, setChatViewerReal] = useState(0);
   const chatRef = useRef<HTMLDivElement>(null);
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
@@ -84,6 +86,11 @@ export default function RightSidebar({ user, authReady, onLoginSuccess, onOpenRe
       setOnlineCount(count);
     });
 
+    socket.on("viewer:chat", (data: { count: number; real: number }) => {
+      setChatViewerCount(data.count);
+      setChatViewerReal(data.real);
+    });
+
     socket.on("chat:deleted", (msgId: number) => {
       setMessages((prev) => prev.filter((m) => m.id !== msgId));
     });
@@ -112,6 +119,7 @@ export default function RightSidebar({ user, authReady, onLoginSuccess, onOpenRe
       socket.off("chat:init");
       socket.off("chat:message");
       socket.off("online:count");
+      socket.off("viewer:chat");
       socket.off("chat:deleted");
       socket.off("chat:pinned");
     };
@@ -259,7 +267,12 @@ export default function RightSidebar({ user, authReady, onLoginSuccess, onOpenRe
             <span className="live-dot w-1.5 h-1.5 rounded-full inline-block bg-red-500" />
             <span className="text-[11px] font-bold" style={{ color: "var(--text-primary)" }}>라이브 공개채팅</span>
           </div>
-          <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>👥 {onlineCount.toLocaleString()}</span>
+          <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>
+            👥 {(chatViewerCount || onlineCount).toLocaleString()}
+            {(user?.role === "ADMIN" || user?.role === "SUPERADMIN") && chatViewerCount > chatViewerReal && (
+              <span className="ml-1 opacity-60">({chatViewerReal})</span>
+            )}
+          </span>
         </div>
 
         {pinnedMessages.length > 0 && (
@@ -293,7 +306,8 @@ export default function RightSidebar({ user, authReady, onLoginSuccess, onOpenRe
           {messages.map((msg) => (
             <div key={msg.id} className="text-xs group relative">
               <div className="flex items-center gap-1 mb-0.5">
-                <LevelBadge level={msg.level || 0} />
+                {/* 관리자/픽스터/BJ는 레벨 숨김 — 역할 뱃지만 노출 */}
+                {!["ADMIN", "SUPERADMIN", "PICKSTER", "BJ"].includes(msg.role) && <LevelBadge level={msg.level || 0} />}
                 {msg.role === "ADMIN" || msg.role === "SUPERADMIN" ? (
                   <><span className="text-[8px] font-bold px-1 py-0.5 rounded text-white" style={{ background: "#dc2626" }}>관리자</span><span className="font-bold text-[10px] px-1 py-0.5 rounded" style={{ color: "#dc2626", background: "#fef2f2" }}>{msg.nickname}</span></>
                 ) : msg.role === "PICKSTER" ? (

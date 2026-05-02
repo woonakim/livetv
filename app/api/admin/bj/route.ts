@@ -32,6 +32,10 @@ export async function GET() {
     isApproved: p.isApproved,
     isActive: p.isActive,
     viewCount: p.viewCount,
+    fakeViewersEnabled: p.fakeViewersEnabled,
+    fakeViewersMin: p.fakeViewersMin,
+    fakeViewersMax: p.fakeViewersMax,
+    fakeViewersRampSec: p.fakeViewersRampSec,
     createdAt: p.createdAt.toISOString(),
   })));
 }
@@ -44,7 +48,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { id, isApproved, isActive, regenerateKey, avatar, avatarType } = body;
+  const { id, isApproved, isActive, regenerateKey, avatar, avatarType, fakeViewersEnabled, fakeViewersMin, fakeViewersMax, fakeViewersRampSec } = body;
   if (!id) return NextResponse.json({ error: "ID 필요" }, { status: 400 });
 
   const data: Record<string, unknown> = {};
@@ -53,6 +57,17 @@ export async function PATCH(req: NextRequest) {
   if (avatar !== undefined) data.avatar = avatar;
   if (avatarType !== undefined) data.avatarType = avatarType;
   if (regenerateKey) data.streamKey = `bj_${crypto.randomBytes(12).toString("hex")}`;
+  // 가짜 시청자 — SUPERADMIN만 변경 가능
+  const touchesFakeViewers = [fakeViewersEnabled, fakeViewersMin, fakeViewersMax, fakeViewersRampSec].some(v => v !== undefined);
+  if (touchesFakeViewers) {
+    if (session.role !== "SUPERADMIN") {
+      return NextResponse.json({ error: "가짜 시청자 설정은 최고 관리자만 변경 가능합니다." }, { status: 403 });
+    }
+    if (fakeViewersEnabled !== undefined) data.fakeViewersEnabled = !!fakeViewersEnabled;
+    if (fakeViewersMin !== undefined) data.fakeViewersMin = Math.max(0, parseInt(fakeViewersMin) || 0);
+    if (fakeViewersMax !== undefined) data.fakeViewersMax = Math.max(0, parseInt(fakeViewersMax) || 0);
+    if (fakeViewersRampSec !== undefined) data.fakeViewersRampSec = Math.max(1, parseInt(fakeViewersRampSec) || 600);
+  }
 
   // 승인 시 유저 role을 BJ로 변경 (단, ADMIN/SUPERADMIN은 강등하지 않음)
   if (isApproved === true) {

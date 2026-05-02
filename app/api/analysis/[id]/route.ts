@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { computeDisplayedViewCount } from "@/lib/fake-views";
 
 
 // GET: 단일 포스트 조회
@@ -10,10 +11,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const id = parseInt(params.id);
   if (isNaN(id)) return NextResponse.json({ error: "잘못된 ID" }, { status: 400 });
 
-  const post = await prisma.analysisPost.findUnique({
-    where: { id },
-    include: { author: { select: { nickname: true, role: true } } },
-  });
+  const [post, siteSetting] = await Promise.all([
+    prisma.analysisPost.findUnique({
+      where: { id },
+      include: { author: { select: { nickname: true, role: true } } },
+    }),
+    prisma.siteSetting.findUnique({ where: { id: 1 } }),
+  ]);
 
   if (!post) return NextResponse.json({ error: "포스트 없음" }, { status: 404 });
 
@@ -45,7 +49,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     odds: post.odds,
     result: post.result,
     isPremium: post.isPremium,
-    viewCount: post.viewCount + 1,
+    viewCount: computeDisplayedViewCount({ ...post, viewCount: post.viewCount + 1 }, siteSetting ?? undefined),
+    realViewCount: post.viewCount + 1,
     likeCount: post.likeCount,
     createdAt: post.createdAt.toISOString(),
     author: { nickname: post.author.nickname, role: post.author.role },
@@ -94,6 +99,27 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   // 결과 설정 (관리자만)
   if (body.result !== undefined && isAdmin) {
     data.result = body.result;
+  }
+
+  // 가짜 조회수 — 관리자만 변경 가능
+  const touchesFake = ["fakeViewsEnabled","fakeViewsTarget","fakeViewsRampHours","fakeViewsManualSet"].some(k => body[k] !== undefined);
+  if (touchesFake) {
+    if (!isAdmin) return NextResponse.json({ error: "가짜 조회수는 관리자만 설정 가능" }, { status: 403 });
+    // manualSet 명시적 처리 — false면 전역 설정 fallback, true면 개별 설정 적용
+    if (body.fakeViewsManualSet !== undefined) {
+      data.fakeViewsManualSet = !!body.fakeViewsManualSet;
+    }
+    if (body.fakeViewsEnabled !== undefined) {
+      data.fakeViewsEnabled = !!body.fakeViewsEnabled;
+      // OFF → ON 전환 시 startAt을 현재로 설정 (이미 ON이거나 이미 set되어 있으면 유지)
+      if (body.fakeViewsEnabled && !post.fakeViewsStartAt) {
+        data.fakeViewsStartAt = new Date();
+      }
+    }
+    if (body.fakeViewsTarget !== undefined) data.fakeViewsTarget = Math.max(0, parseInt(body.fakeViewsTarget) || 0);
+    if (body.fakeViewsRampHours !== undefined) data.fakeViewsRampHours = Math.max(1, parseInt(body.fakeViewsRampHours) || 24);
+    // ramp 재시작 (옵션) — body.fakeViewsRestart === true면 startAt을 지금으로 reset
+    if (body.fakeViewsRestart === true) data.fakeViewsStartAt = new Date();
   }
 
   await prisma.analysisPost.update({ where: { id }, data });

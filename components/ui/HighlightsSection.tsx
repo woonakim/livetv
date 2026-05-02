@@ -112,10 +112,12 @@ export default function HighlightsSection({ videos, layout }: Props) {
               <div className="space-y-0.5 mb-0.5">
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] font-bold px-1 rounded" style={{ background: "var(--brand)", color: "#fff" }}>H</span>
+                  <SmallTeamLogo name={video.homeTeam} sport={video.category} logoMap={logoMap} enabled={logoEnabled} />
                   <p className="text-[12px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{video.homeTeam}</p>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] font-bold px-1 rounded" style={{ background: "var(--text-secondary)", color: "#fff" }}>A</span>
+                  <SmallTeamLogo name={video.awayTeam} sport={video.category} logoMap={logoMap} enabled={logoEnabled} />
                   <p className="text-[12px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{video.awayTeam}</p>
                 </div>
               </div>

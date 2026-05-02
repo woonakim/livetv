@@ -278,6 +278,9 @@ export default function AdminSettingsPage() {
       {/* 텔레그램 봇 알림 */}
       <TelegramNotifySection />
 
+      {/* 가짜 공개채팅 시청자 부풀리기 */}
+      <FakeChatViewerSection />
+
       <p className="text-[11px] text-center mt-2" style={{ color: "var(--text-secondary)" }}>
         💡 생일 보상 / 분석글 작성 권한 / 채팅 보상 캡은{" "}
         <a href="/admin/rewards" className="font-bold" style={{ color: "var(--brand)" }}>활동 보상 설정</a>
@@ -464,3 +467,70 @@ function TelegramNotifySection() {
   );
 }
 
+// ─── 가짜 공개채팅 시청자 부풀리기 ─────────────
+function FakeChatViewerSection() {
+  const [enabled, setEnabled] = useState(false);
+  const [min, setMin] = useState(0);
+  const [max, setMax] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/site-settings").then(r => r.json()).then(d => {
+      setEnabled(!!d?.fakeViewersChatEnabled);
+      setMin(d?.fakeViewersChatMin ?? 0);
+      setMax(d?.fakeViewersChatMax ?? 0);
+    }).catch(() => {});
+  }, []);
+
+  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 3000); };
+
+  const patch = async (body: Record<string, unknown>) => {
+    setSaving(true);
+    const res = await fetch("/api/admin/site-settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setSaving(false);
+    if (res.ok) flash("✓ 저장됨"); else flash("✗ 저장 실패");
+  };
+
+  const saveRange = () => {
+    if (min < 0 || max < 0) return flash("✗ 0 이상 입력");
+    if (max < min) return flash("✗ 최대값이 최소값보다 작음");
+    patch({ fakeViewersChatMin: min, fakeViewersChatMax: max });
+  };
+
+  return (
+    <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+      <div className="px-4 py-3" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+        <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>👥 공개채팅 시청자수 부풀리기</h2>
+        <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
+          메인 화면 라이브 공개채팅의 시청자 수에 가짜 boost를 더해 표시합니다. 실제 접속자 + 가짜값(min~max 사이 random walk, 3~5초마다 변동).
+        </p>
+        <p className="text-[10px] mt-1" style={{ color: "var(--text-secondary)" }}>관리자에게는 <code>표시값(실제값)</code> 형식으로 노출됩니다.</p>
+      </div>
+      <div className="px-4 py-3 space-y-3" style={{ background: "var(--surface)" }}>
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>활성화</span>
+          <button
+            onClick={async () => { const v = !enabled; setEnabled(v); await patch({ fakeViewersChatEnabled: v }); }}
+            disabled={saving}
+            className="relative w-11 h-6 rounded-full transition-colors"
+            style={{ background: enabled ? "var(--brand)" : "#d1d5db" }}
+          >
+            <span className="absolute rounded-full transition-all" style={{ top: 2, left: enabled ? 22 : 2, width: 20, height: 20, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.05)" }} />
+          </button>
+        </div>
+        <div>
+          <label className="text-[11px] font-bold block mb-1" style={{ color: "var(--text-secondary)" }}>가짜 boost 범위 (min ~ max)</label>
+          <div className="flex items-center gap-2">
+            <input type="number" min={0} value={min} onChange={e => setMin(parseInt(e.target.value) || 0)} className="w-24 rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+            <span className="text-sm" style={{ color: "var(--text-secondary)" }}>~</span>
+            <input type="number" min={0} value={max} onChange={e => setMax(parseInt(e.target.value) || 0)} className="w-24 rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+            <button onClick={saveRange} disabled={saving} className="px-3 py-2 rounded-lg text-xs font-bold text-white shrink-0" style={{ background: "var(--brand)" }}>저장</button>
+          </div>
+          <p className="text-[10px] mt-1" style={{ color: "var(--text-secondary)" }}>예: min 80, max 150 → 표시값 = 실제 접속자 + 무작위(80~150)</p>
+        </div>
+        {msg && <p className="text-[11px] font-bold" style={{ color: msg.startsWith("✓") ? "#10b981" : "#ef4444" }}>{msg}</p>}
+      </div>
+    </div>
+  );
+}

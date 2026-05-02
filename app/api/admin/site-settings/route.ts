@@ -42,6 +42,10 @@ export async function PATCH(req: NextRequest) {
     "chatMinLength","chatMinLengthEnabled","chatDuplicateBlockEnabled",
     // 텔레그램 알림
     "telegramBotToken","telegramSubscribePasscode","telegramNotifyEnabled",
+    // 가짜 공개채팅 시청자
+    "fakeViewersChatEnabled","fakeViewersChatMin","fakeViewersChatMax",
+    // 분석글 가짜 조회수 전역 default
+    "fakeViewsAnalysisEnabled","fakeViewsAnalysisTargetMin","fakeViewsAnalysisTargetMax","fakeViewsAnalysisRampHours",
   ]) {
     if (body[k] !== undefined) data[k] = body[k];
   }

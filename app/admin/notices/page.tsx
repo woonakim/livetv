@@ -47,6 +47,14 @@ export default function AdminNoticesPage() {
     flash("삭제되었습니다."); load();
   };
 
+  const handleEditViewCount = async (n: Notice) => {
+    const v = prompt(`조회수를 입력하세요 (현재: ${n.viewCount})`, String(n.viewCount));
+    if (v === null) return;
+    const next = Math.max(0, parseInt(v) || 0);
+    await fetch(`/api/admin/notices/${n.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ viewCount: next }) });
+    flash("조회수가 수정되었습니다."); load();
+  };
+
   const formatDate = (d: string) => new Date(d).toLocaleDateString("ko-KR");
 
   return (
@@ -101,7 +109,9 @@ export default function AdminNoticesPage() {
                     {n.isPinned ? "고정" : "-"}
                   </button>
                 </td>
-                <td className="px-3 py-2 text-right text-gray-500">{n.viewCount}</td>
+                <td className="px-3 py-2 text-right">
+                  <button onClick={() => handleEditViewCount(n)} className="text-gray-600 hover:text-blue-600 hover:underline" title="클릭하여 조회수 수정">{n.viewCount.toLocaleString()}</button>
+                </td>
                 <td className="px-3 py-2 text-center">
                   <button onClick={() => handleToggleActive(n)} className={`text-[11px] font-bold ${n.isActive ? "text-green-600" : "text-gray-400"}`}>
                     {n.isActive ? "활성" : "비활성"}

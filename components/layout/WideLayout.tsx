@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 const DESKTOP_NAV = [
   { label: "스폰업체", href: "/partners" },
   { label: "스포츠 중계", href: "/broadcast", badge: "LIVE" },
-  { label: "스포츠 분석", href: "/analysis/premium", sub: [
-    { label: "프리미엄 분석", href: "/analysis/premium" },
+  { label: "스포츠 분석", href: "/analysis", sub: [
     { label: "분석 포스트",   href: "/analysis" },
+    { label: "프리미엄 분석", href: "/analysis/premium" },
   ]},
   { label: "스포츠 정보", href: "/sports-info/standings", sub: [
     { label: "스코어 정보", href: "/sports-info/standings" },
@@ -16,8 +16,9 @@ const DESKTOP_NAV = [
   ]},
   { label: "유튜브", href: "/youtube/highlights" },
   { label: "이벤트", href: "/events", sub: [
-    { label: "이벤트매치", href: "/events" },
-    { label: "출석체크",   href: "/attendance" },
+    { label: "이벤트매치",   href: "/events" },
+    { label: "출석체크",     href: "/attendance" },
+    { label: "이벤트게시판", href: "/events/board" },
   ]},
   { label: "포인트 전환", href: "/points" },
   { label: "공지사항",   href: "/notice" },

@@ -31,7 +31,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     select: { id: true, updatedAt: true },
     orderBy: { id: "desc" },
     take: 200,
-  });
+  }).catch(() => []);
   const postPages: MetadataRoute.Sitemap = posts.map(p => ({
     url: `${BASE_URL}/analysis/${p.id}`,
     lastModified: p.updatedAt,
@@ -45,7 +45,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     select: { id: true, updatedAt: true },
     orderBy: { id: "desc" },
     take: 50,
-  });
+  }).catch(() => []);
   const eventPages: MetadataRoute.Sitemap = events.map(e => ({
     url: `${BASE_URL}/events/${e.id}`,
     lastModified: e.updatedAt,
@@ -59,7 +59,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     select: { id: true, updatedAt: true },
     orderBy: { id: "desc" },
     take: 50,
-  });
+  }).catch(() => []);
   const noticePages: MetadataRoute.Sitemap = notices.map(n => ({
     url: `${BASE_URL}/notice/${n.id}`,
     lastModified: n.updatedAt,

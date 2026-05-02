@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { grantReward, todayKstDateOnly } from "@/lib/reward";
+import { computeDisplayedViewCount } from "@/lib/fake-views";
 
 
 // GET: 분석 포스트 목록
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   if (premium) where.isPremium = true;
   if (upcoming) where.matchTime = { gte: new Date() };
 
-  const [posts, total] = await Promise.all([
+  const [posts, total, siteSetting] = await Promise.all([
     prisma.analysisPost.findMany({
       where,
       include: { author: { select: { nickname: true, role: true } } },
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
       take: limit,
     }),
     prisma.analysisPost.count({ where }),
+    prisma.siteSetting.findUnique({ where: { id: 1 }, select: { fakeViewsAnalysisEnabled: true, fakeViewsAnalysisTargetMin: true, fakeViewsAnalysisTargetMax: true, fakeViewsAnalysisRampHours: true } }),
   ]);
 
   const now = new Date();
@@ -46,7 +48,8 @@ export async function GET(req: NextRequest) {
     odds: p.odds,
     result: p.result,
     isPremium: p.isPremium,
-    viewCount: p.viewCount,
+    viewCount: computeDisplayedViewCount(p, siteSetting ?? undefined),  // 가짜 부풀리기 적용된 표시값
+    realViewCount: p.viewCount,                                          // 관리자용 실제값
     likeCount: p.likeCount,
     createdAt: p.createdAt.toISOString(),
     author: { nickname: p.author.nickname, role: p.author.role },

@@ -41,6 +41,8 @@ export default function FloatingPanel({ user, onLogout, onOpenLogin, onOpenRegis
   const [chatInput, setChatInput] = useState("");
   const [sending] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
+  const [chatViewerCount, setChatViewerCount] = useState(0);
+  const [chatViewerReal, setChatViewerReal] = useState(0);
   const chatMsgRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -67,6 +69,11 @@ export default function FloatingPanel({ user, onLogout, onOpenLogin, onOpenRegis
 
     socket.on("online:count", (count: number) => {
       setOnlineCount(count);
+    });
+
+    socket.on("viewer:chat", (data: { count: number; real: number }) => {
+      setChatViewerCount(data.count);
+      setChatViewerReal(data.real);
     });
 
     socket.on("chat:deleted", (msgId: number) => {
@@ -97,6 +104,7 @@ export default function FloatingPanel({ user, onLogout, onOpenLogin, onOpenRegis
       socket.off("chat:init");
       socket.off("chat:message");
       socket.off("online:count");
+      socket.off("viewer:chat");
       socket.off("chat:deleted");
       socket.off("chat:pinned");
     };
@@ -246,7 +254,12 @@ export default function FloatingPanel({ user, onLogout, onOpenLogin, onOpenRegis
             <span className="text-[13px] font-bold" style={{ color: "var(--text-primary)" }}>라이브 공개채팅</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>👥 {onlineCount.toLocaleString()}</span>
+            <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+              👥 {(chatViewerCount || onlineCount).toLocaleString()}
+              {user && (user.role === "ADMIN" || user.role === "SUPERADMIN") && chatViewerCount > chatViewerReal && (
+                <span className="ml-1 opacity-60">({chatViewerReal})</span>
+              )}
+            </span>
             <button onClick={closeAll} className="w-8 h-8 flex items-center justify-center" style={{ color: "var(--text-secondary)" }}>
               <i className="fas fa-times text-[14px]" />
             </button>
