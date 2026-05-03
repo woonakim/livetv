@@ -36,6 +36,65 @@ async function getUserLevel(userId) {
   return lv;
 }
 
+// 채팅 보상 — lib/reward.ts:grantChatReward 와 동기 유지 (TS→JS 직접 import 불가로 인라인)
+function _todayKstDateOnly() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 3600 * 1000);
+  return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()));
+}
+async function grantChatReward(userId, text) {
+  if (!userId) return null;
+  try {
+    const trimmed = String(text || "").trim();
+    const setting = await prisma.siteSetting.findUnique({ where: { id: 1 } });
+    if (!setting) return null;
+    if (setting.chatMinLengthEnabled && trimmed.length < setting.chatMinLength) return null;
+    const reward = await prisma.activityReward.findUnique({ where: { activityKey: "chat" } });
+    if (!reward || !reward.isActive || (reward.points === 0 && reward.exp === 0)) return null;
+
+    const today = _todayKstDateOnly();
+    const todayKey = today.toISOString().slice(0, 10);
+    // 새 날 시작이면 누적치 리셋
+    await prisma.user.updateMany({
+      where: { id: userId, OR: [{ chatRewardDate: null }, { chatRewardDate: { lt: today } }] },
+      data: { chatRewardPoints: 0, chatRewardExp: 0, chatRewardDate: today },
+    });
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { chatRewardPoints: true, chatRewardExp: true, chatRewardDate: true },
+    });
+    if (!u) return null;
+    const sameDay = u.chatRewardDate?.toISOString().slice(0, 10) === todayKey;
+    const accumPts = sameDay ? u.chatRewardPoints : 0;
+    const accumExp = sameDay ? u.chatRewardExp : 0;
+    const ptsCap = setting.chatRewardDailyPointCap;
+    const expCap = setting.chatRewardDailyExpCap;
+    const remainPts = ptsCap === 0 ? reward.points : Math.max(0, ptsCap - accumPts);
+    const remainExp = expCap === 0 ? reward.exp : Math.max(0, expCap - accumExp);
+    const grantPts = Math.min(reward.points, remainPts);
+    const grantExp = Math.min(reward.exp, remainExp);
+    if (grantPts === 0 && grantExp === 0) return null;
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        points: { increment: grantPts },
+        exp: { increment: grantExp },
+        chatRewardPoints: { increment: grantPts },
+        chatRewardExp: { increment: grantExp },
+      },
+      select: { points: true },
+    });
+    await prisma.pointLog.create({
+      data: { userId, type: "EARN", amount: grantPts, reason: "채팅 보상", balance: updated.points },
+    });
+    return { points: grantPts, exp: grantExp };
+  } catch (e) {
+    console.error("[reward] grantChatReward (server.js) failed:", e.message);
+    return null;
+  }
+}
+
 app.prepare().then(() => {
   const httpServer = createServer((req, res) => {
     const parsedUrl = parse(req.url, true);
@@ -262,6 +321,8 @@ app.prepare().then(() => {
           data: { userId, nickname: user?.nickname || nickname, role: user?.role || "USER", level, text: text.trim() },
         });
         io.emit("chat:message", msg);
+        // 채팅 보상 (fire-and-forget — 실패해도 메시지 송출은 계속)
+        if (userId) grantChatReward(userId, text).catch(() => {});
       } catch (e) { console.error("chat:send error", e); }
     });
 
@@ -353,6 +414,8 @@ app.prepare().then(() => {
           },
         });
         io.to(room).emit("bj:message", msg);
+        // 채팅 보상 (메인 채팅과 동일 cap 공유)
+        grantChatReward(auth.id, text).catch(() => {});
       } catch (e) { console.error("bj:send error", e); }
     });
 

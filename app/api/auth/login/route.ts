@@ -37,6 +37,8 @@ export async function POST(req: NextRequest) {
     prisma.accessLog.create({
       data: { userId: user.id, type: "login", ip, userAgent: ua, path: "/login" },
     }).catch(() => {});
+    // 마지막 로그인 시각 갱신 (휴면 회원 식별용 — fire-and-forget)
+    prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {});
 
     // 매일 첫 로그인 보상 — atomic claim으로 동시 로그인 중복 지급 차단
     let dailyReward: { points: number; exp: number } | null = null;

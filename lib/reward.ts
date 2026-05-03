@@ -68,20 +68,19 @@ export async function grantChatReward(userId: number, text: string): Promise<{ p
     if (grantPts === 0 && grantExp === 0) return null;
 
     // 3) atomic increment (race 시 약간 over-cap 가능하나, 단발성 + 차순 호출에서 캡 도달 검증)
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: userId },
-        data: {
-          points: { increment: grantPts },
-          exp: { increment: grantExp },
-          chatRewardPoints: { increment: grantPts },
-          chatRewardExp: { increment: grantExp },
-        },
-      }),
-      prisma.pointLog.create({
-        data: { userId, type: "EARN", amount: grantPts, reason: "채팅 보상" },
-      }),
-    ]);
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        points: { increment: grantPts },
+        exp: { increment: grantExp },
+        chatRewardPoints: { increment: grantPts },
+        chatRewardExp: { increment: grantExp },
+      },
+      select: { points: true },
+    });
+    await prisma.pointLog.create({
+      data: { userId, type: "EARN", amount: grantPts, reason: "채팅 보상", balance: updated.points },
+    });
     return { points: grantPts, exp: grantExp };
   } catch (err) {
     console.error("[reward] grantChatReward failed:", err);
@@ -112,23 +111,23 @@ export async function grantReward(
       return null;
     }
 
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: userId },
-        data: {
-          points: { increment: reward.points },
-          exp: { increment: reward.exp },
-        },
-      }),
-      prisma.pointLog.create({
-        data: {
-          userId,
-          type: "EARN",
-          amount: reward.points,
-          reason: reason || `활동보상: ${reward.label}`,
-        },
-      }),
-    ]);
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        points: { increment: reward.points },
+        exp: { increment: reward.exp },
+      },
+      select: { points: true },
+    });
+    await prisma.pointLog.create({
+      data: {
+        userId,
+        type: "EARN",
+        amount: reward.points,
+        reason: reason || `활동보상: ${reward.label}`,
+        balance: updated.points,
+      },
+    });
 
     return { points: reward.points, exp: reward.exp };
   } catch (err) {

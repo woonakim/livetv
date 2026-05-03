@@ -58,10 +58,10 @@ async function searchTheSportsDB(query: string): Promise<Candidate[]> {
   }
 }
 
-async function searchWikipedia(query: string): Promise<Candidate[]> {
+async function searchWikipediaLang(query: string, lang: "en" | "ko" | "ja"): Promise<Candidate[]> {
   try {
     const searchRes = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=5&format=json`,
+      `https://${lang}.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=5&format=json`,
       { signal: AbortSignal.timeout(10000), cache: "no-store" }
     );
     if (!searchRes.ok) return [];
@@ -76,7 +76,7 @@ async function searchWikipedia(query: string): Promise<Candidate[]> {
       if (!nameMatchesQuery(query, titles[i])) continue;
       try {
         const sumRes = await fetch(
-          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+          `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
           { signal: AbortSignal.timeout(10000), cache: "no-store", headers: { "User-Agent": "Mozilla/5.0" } }
         );
         if (!sumRes.ok) continue;
@@ -87,7 +87,7 @@ async function searchWikipedia(query: string): Promise<Candidate[]> {
           name: titles[i],
           imageUrl: img,
           source: "wikipedia",
-          description: descs[i] || sum.description || "",
+          description: `[${lang}] ${descs[i] || sum.description || ""}`,
         });
       } catch {
         continue;
@@ -97,6 +97,17 @@ async function searchWikipedia(query: string): Promise<Candidate[]> {
   } catch {
     return [];
   }
+}
+
+async function searchWikipedia(query: string): Promise<Candidate[]> {
+  // 한글 → 한글 wiki 우선 / 일본어 → 일본 wiki / 영문 → en 우선
+  // 모두 병렬 조회 후 합산
+  const [ko, ja, en] = await Promise.all([
+    searchWikipediaLang(query, "ko"),
+    searchWikipediaLang(query, "ja"),
+    searchWikipediaLang(query, "en"),
+  ]);
+  return [...ko, ...ja, ...en];
 }
 
 export async function GET(req: NextRequest) {

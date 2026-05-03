@@ -39,6 +39,12 @@ model User {
   analysisRewardCount Int @default(0) // 오늘 분석글 보상 받은 횟수
   analysisRewardDate  DateTime? @db.Date // 분석글 보상 기준 일자
   isActive     Boolean   @default(true)
+  // 관리자 메모 — 비활성화 사유, 특이사항, 다중계정 의심 등 기록
+  adminMemo    String    @default("") @db.Text
+  // 휴면 회원 식별용
+  lastLoginAt  DateTime?
+  // 이 시각 이전 발급된 JWT는 무효 (강제 로그아웃용)
+  sessionInvalidAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -81,6 +87,7 @@ model PointLog {
   type      PointType
   amount    Int
   reason    String
+  balance   Int?      // 적립/차감 후 잔액 (신규 로그부터 기록)
   createdAt DateTime  @default(now())
 
   user      User      @relation(fields: [userId], references: [id])
