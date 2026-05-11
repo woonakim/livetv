@@ -465,6 +465,8 @@ model SiteSetting {
   fakeViewsAnalysisTargetMin  Int     @default(0)
   fakeViewsAnalysisTargetMax  Int     @default(0)
   fakeViewsAnalysisRampHours  Int     @default(24)
+  // ── 이벤트 자동 마감 (deadline 도달 시 isActive=false 자동 처리) ──
+  autoCloseEventsEnabled      Boolean @default(true)
   // ── 가입 시 추가 정보 수집 ──
   collectBirthDateOnSignup Boolean @default(false)
   collectPhoneOnSignup     Boolean @default(false)

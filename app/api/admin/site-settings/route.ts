@@ -46,6 +46,8 @@ export async function PATCH(req: NextRequest) {
     "fakeViewersChatEnabled","fakeViewersChatMin","fakeViewersChatMax",
     // 분석글 가짜 조회수 전역 default
     "fakeViewsAnalysisEnabled","fakeViewsAnalysisTargetMin","fakeViewsAnalysisTargetMax","fakeViewsAnalysisRampHours",
+    // 이벤트매치 자동 마감
+    "autoCloseEventsEnabled",
   ]) {
     if (body[k] !== undefined) data[k] = body[k];
   }

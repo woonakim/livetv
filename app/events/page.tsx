@@ -17,18 +17,24 @@ interface EventItem {
 
 export default function EventsPage() {
   const router = useRouter();
-  const [events, setEvents] = useState<EventItem[]>([]);
+  const [active, setActive] = useState<EventItem[]>([]);
+  const [past, setPast] = useState<EventItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchType, setSearchType] = useState("title");
 
   useEffect(() => {
-    fetch("/api/events").then(r => r.json()).then(setEvents);
+    fetch("/api/events").then(r => r.json()).then(d => {
+      setActive(Array.isArray(d) ? d : (d.active || []));
+      setPast(Array.isArray(d) ? [] : (d.past || []));
+    });
   }, []);
 
-  const filtered = events.filter((e) => {
+  const matchesQuery = (e: EventItem) => {
     if (!searchQuery.trim()) return true;
     return e.title.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  };
+  const filteredActive = active.filter(matchesQuery);
+  const filteredPast = past.filter(matchesQuery);
 
   const formatDate = (d: string) => {
     const date = new Date(d);
@@ -98,60 +104,72 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* 이벤트 목록 */}
-      <ul className="space-y-2 pb-6">
-        {filtered.map((item) => {
-          const isExpired = new Date(item.deadline) < new Date();
-          return (
-            <li key={item.id}>
-              <Link
-                href={`/events/${item.id}`}
-                className="flex items-center p-3 rounded-lg transition-all hover:opacity-90"
-                style={{
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  boxShadow: "0 1px 3px rgba(8,8,8,0.15)",
-                  opacity: isExpired ? 0.6 : 1,
-                }}
-              >
-                {/* 썸네일 */}
-                <div className="w-[100px] h-[63px] mr-3 shrink-0 rounded overflow-hidden" style={{ background: "var(--bg)" }}>
-                  <img
-                    src={item.bannerImg}
-                    alt="thumbnail"
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                  />
-                </div>
-                {/* 텍스트 */}
-                <div className="flex-grow min-w-0 flex flex-col justify-center">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    {isExpired ? (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#94a3b8", color: "#fff" }}>마감</span>
-                    ) : (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#dc2626", color: "#fff" }}>진행중</span>
-                    )}
-                    <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>참여 {item._count.votes}명</span>
-                  </div>
-                  <div className="text-[13px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>
-                    {item.title}
-                  </div>
-                  <div className="mt-1 flex items-center gap-3 text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                    <span>작성자 : 라이브TV</span>
-                    <span>작성일 : {formatDate(item.createdAt)}</span>
-                  </div>
-                </div>
-              </Link>
-            </li>
-          );
-        })}
+      {/* 진행중 이벤트 */}
+      {filteredActive.length > 0 && (
+        <div className="mt-2">
+          <h2 className="text-[12px] font-bold mb-2 px-1" style={{ color: "var(--text-secondary)" }}>진행중</h2>
+          <ul className="space-y-2">
+            {filteredActive.map((item) => (
+              <EventCard key={item.id} item={item} expired={false} formatDate={formatDate} />
+            ))}
+          </ul>
+        </div>
+      )}
 
-        {filtered.length === 0 && (
-          <li className="py-12 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
-            검색 결과가 없습니다.
-          </li>
-        )}
-      </ul>
+      {/* 지난 이벤트 */}
+      {filteredPast.length > 0 && (
+        <div className="mt-4">
+          <h2 className="text-[12px] font-bold mb-2 px-1" style={{ color: "var(--text-secondary)" }}>지난 이벤트</h2>
+          <ul className="space-y-2 pb-6">
+            {filteredPast.map((item) => (
+              <EventCard key={item.id} item={item} expired={true} formatDate={formatDate} />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {filteredActive.length === 0 && filteredPast.length === 0 && (
+        <p className="py-12 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+          {searchQuery ? "검색 결과가 없습니다." : "등록된 이벤트가 없습니다."}
+        </p>
+      )}
     </>
+  );
+}
+
+function EventCard({ item, expired, formatDate }: { item: EventItem; expired: boolean; formatDate: (d: string) => string }) {
+  return (
+    <li>
+      <Link
+        href={`/events/${item.id}`}
+        className="flex items-center p-3 rounded-lg transition-all hover:opacity-90"
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          boxShadow: "0 1px 3px rgba(8,8,8,0.15)",
+          opacity: expired ? 0.6 : 1,
+        }}
+      >
+        <div className="w-[100px] h-[63px] mr-3 shrink-0 rounded overflow-hidden" style={{ background: "var(--bg)" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={item.bannerImg} alt="thumbnail" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        </div>
+        <div className="flex-grow min-w-0 flex flex-col justify-center">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            {expired ? (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#94a3b8", color: "#fff" }}>마감</span>
+            ) : (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#dc2626", color: "#fff" }}>진행중</span>
+            )}
+            <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>참여 {item._count.votes}명</span>
+          </div>
+          <div className="text-[13px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{item.title}</div>
+          <div className="mt-1 flex items-center gap-3 text-[11px]" style={{ color: "var(--text-secondary)" }}>
+            <span>작성자 : 라이브TV</span>
+            <span>작성일 : {formatDate(item.createdAt)}</span>
+          </div>
+        </div>
+      </Link>
+    </li>
   );
 }

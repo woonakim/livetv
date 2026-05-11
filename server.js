@@ -556,6 +556,25 @@ app.prepare().then(() => {
   setTimeout(runHighlightSync, 60 * 1000);
   setInterval(runHighlightSync, 30 * 60 * 1000);
 
+  // ═══════════════════════════════════════
+  //  이벤트매치 자동 마감 cron (1분마다)
+  //  SiteSetting.autoCloseEventsEnabled=true 일 때만 실행
+  //  deadline 지난 isActive=true 이벤트를 isActive=false로 변경
+  // ═══════════════════════════════════════
+  cron.schedule("* * * * *", async () => {
+    try {
+      const setting = await prisma.siteSetting.findFirst({ select: { autoCloseEventsEnabled: true } });
+      if (!setting?.autoCloseEventsEnabled) return;
+      const result = await prisma.event.updateMany({
+        where: { isActive: true, deadline: { lt: new Date() } },
+        data: { isActive: false },
+      });
+      if (result.count > 0) console.log(`[event-auto-close] closed ${result.count} events`);
+    } catch (e) {
+      console.error("[event-auto-close] error:", e?.message || e);
+    }
+  });
+
   httpServer.listen(3000, () => {
     console.log("> Ready on http://localhost:3000");
   });

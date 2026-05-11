@@ -81,6 +81,8 @@ export default function AdminEventsPage() {
         <button onClick={newEvent} className="h-8 px-4 bg-gray-800 text-white text-[12px] font-bold rounded">새 이벤트 등록</button>
       </div>
 
+      <AutoCloseToggle />
+
       {msg && <div className="mb-3 px-3 py-2 rounded text-[12px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{msg}</div>}
 
       {editing && (
@@ -148,6 +150,36 @@ export default function AdminEventsPage() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function AutoCloseToggle() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    fetch("/api/admin/site-settings").then(r => r.json()).then(d => setEnabled(!!d?.autoCloseEventsEnabled));
+  }, []);
+  if (enabled === null) return null;
+
+  const toggle = async () => {
+    const next = !enabled;
+    setEnabled(next);
+    setSaving(true);
+    await fetch("/api/admin/site-settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoCloseEventsEnabled: next }) });
+    setSaving(false);
+  };
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-3 mb-4 flex items-center justify-between">
+      <div>
+        <p className="text-[13px] font-bold text-gray-800">⏰ 자동 마감 (정산 준비)</p>
+        <p className="text-[11px] text-gray-500 mt-0.5">deadline 도달 시 자동으로 isActive=false 처리 (1분 cron). OFF 시 관리자가 수동 마감.</p>
+      </div>
+      <button onClick={toggle} disabled={saving}
+        className="relative w-11 h-6 rounded-full transition-colors shrink-0"
+        style={{ background: enabled ? "var(--brand)" : "#cbd5e1" }}>
+        <span className="absolute rounded-full transition-all" style={{ top: 2, left: enabled ? 22 : 2, width: 20, height: 20, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.05)" }} />
+      </button>
     </div>
   );
 }
