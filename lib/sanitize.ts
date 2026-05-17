@@ -35,7 +35,7 @@ const IFRAME_HOSTS = [
 
 export function sanitize(dirty: string): string {
   if (!dirty) return "";
-  return sanitizeHtml(dirty, {
+  const cleaned = sanitizeHtml(dirty, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRS,
     allowedSchemes: ["http", "https", "mailto", "data"],
@@ -56,4 +56,6 @@ export function sanitize(dirty: string): string {
       },
     },
   });
+  // 빈 단락(엔터로 만든 빈 줄)이 sanitize 후 <p></p>로 남으면 시각적으로 줄바꿈이 사라짐 → <br/>을 채워 보존
+  return cleaned.replace(/<p>\s*<\/p>/g, "<p><br/></p>");
 }

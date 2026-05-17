@@ -10,8 +10,8 @@ self.addEventListener("push", (e) => {
   e.waitUntil(
     self.registration.showNotification(data.title || "라이브TV", {
       body: data.body || "새로운 알림이 있습니다.",
-      icon: "/real_logo/livetv_logo.png",
-      badge: "/real_logo/livetv_logo.png",
+      icon: "/logo/logo_background_transparency.png",
+      badge: "/logo/logo_background_transparency.png",
       data: { url: data.url || "/" },
     })
   );

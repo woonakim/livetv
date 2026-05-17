@@ -12,6 +12,7 @@ interface EventItem {
   teamB: string;
   deadline: string;
   createdAt: string;
+  effectiveRewardPoints?: number;
   _count: { votes: number };
 }
 
@@ -162,6 +163,11 @@ function EventCard({ item, expired, formatDate }: { item: EventItem; expired: bo
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#dc2626", color: "#fff" }}>진행중</span>
             )}
             <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>참여 {item._count.votes}명</span>
+            {!!item.effectiveRewardPoints && item.effectiveRewardPoints > 0 && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded ml-auto" style={{ background: "#fef3c7", color: "#92400e" }}>
+                상금 : {item.effectiveRewardPoints.toLocaleString()}포인트
+              </span>
+            )}
           </div>
           <div className="text-[13px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{item.title}</div>
           <div className="mt-1 flex items-center gap-3 text-[11px]" style={{ color: "var(--text-secondary)" }}>

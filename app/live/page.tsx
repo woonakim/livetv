@@ -24,8 +24,10 @@ interface BjInfo {
 }
 
 interface ChatMsg {
-  id: number; nickname: string; role: string; level?: number; text: string; userId?: number; createdAt: string;
+  id: number; nickname: string; role: string; level?: number; text: string; userId?: number | null; createdAt: string;
   isPinned?: boolean;
+  guestId?: string;       // 비회원 메시지 식별자 (mod 차단 버튼용)
+  isPresence?: boolean;   // 클라이언트 임시 입/퇴장 알림 (mod-only 수신, DB 미저장)
 }
 
 interface ChatSettings {
@@ -90,6 +92,28 @@ function LivePageInner() {
   const [hoveredMsg, setHoveredMsg] = useState<number | null>(null);
   const [bjViewerCount, setBjViewerCount] = useState<number | null>(null);
   const [bjViewerReal, setBjViewerReal] = useState<number | null>(null);
+
+  // 관리자용 — 현재 접속자 목록 (admin:online-users 수신)
+  const [onlineList, setOnlineList] = useState<{ members: { nickname: string }[]; guests: { nickname: string }[]; count: number }>({ members: [], guests: [], count: 0 });
+  const [showOnlineList, setShowOnlineList] = useState(false);
+
+  // 비회원 게스트 식별자 — localStorage 기반, 브라우저 단위로 유지
+  // guestId: 차단/식별용 UUID-like / guestName: 화면 표시용 "손님XXXXXX"
+  const [guest, setGuest] = useState<{ id: string; name: string } | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let id = localStorage.getItem("livetv_guest_id");
+    let name = localStorage.getItem("livetv_guest_name");
+    if (!id) {
+      id = `g_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+      localStorage.setItem("livetv_guest_id", id);
+    }
+    if (!name) {
+      name = `손님${Math.floor(100000 + Math.random() * 900000)}`;
+      localStorage.setItem("livetv_guest_name", name);
+    }
+    setGuest({ id, name });
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => { if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, 50);
@@ -338,6 +362,20 @@ function LivePageInner() {
       setBjViewerCount(data.count);
       setBjViewerReal(data.real);
     };
+    // 입/퇴장 알림 (mod-room 수신자만 받음) — chatMessages 에 임시 메시지로 push
+    const onPresence = (data: { bjId: number; kind: "enter" | "leave"; nickname: string; ts: number }) => {
+      if (data.bjId !== mainBjId) return;
+      const msg: ChatMsg = {
+        id: -data.ts - Math.floor(Math.random() * 1000), // 음수 id 로 DB 메시지와 충돌 회피
+        nickname: "",
+        role: "PRESENCE",
+        text: `${data.nickname}님이 ${data.kind === "enter" ? "입장" : "퇴장"}했습니다.`,
+        createdAt: new Date(data.ts).toISOString(),
+        isPresence: true,
+      };
+      setChatMessages(prev => [...prev, msg]);
+      scrollToBottom();
+    };
 
     // 리스너 먼저 등록 (init 이벤트 누락 방지)
     s.on("bj:init", onInit);
@@ -346,9 +384,10 @@ function LivePageInner() {
     s.on("bj:pinned", onPinned);
     s.on("bj:error", onError);
     s.on("viewer:bj", onViewer);
+    s.on("bj:presence", onPresence);
 
     // join — 현재 연결 상태에 따라 즉시 또는 connect 시
-    const join = () => s.emit("bj:join", { bjId: mainBjId });
+    const join = () => s.emit("bj:join", { bjId: mainBjId, guestId: guest?.id, guestName: !user ? guest?.name : undefined });
     if (s.connected) join();
     s.on("connect", join);  // 재연결 시에도 자동 재가입
 
@@ -360,16 +399,23 @@ function LivePageInner() {
       s.off("bj:pinned", onPinned);
       s.off("bj:error", onError);
       s.off("viewer:bj", onViewer);
+      s.off("bj:presence", onPresence);
       s.off("connect", join);
       setBjViewerCount(null);
       setBjViewerReal(null);
     };
-  }, [mainBjId, scrollToBottom]);
+  }, [mainBjId, scrollToBottom, user, guest?.id, guest?.name]);
 
   const sendMessage = () => {
-    if (!chatInput.trim() || !user || !mainBj) return;
+    if (!chatInput.trim() || !mainBj) return;
     if (isBanned) { alert("채팅이 차단되었습니다."); return; }
-    getSocket().emit("bj:send", { bjId: mainBj.id, text: chatInput.trim() });
+    if (user) {
+      getSocket().emit("bj:send", { bjId: mainBj.id, text: chatInput.trim() });
+    } else if (guest) {
+      getSocket().emit("bj:send", { bjId: mainBj.id, text: chatInput.trim(), guestId: guest.id, guestName: guest.name });
+    } else {
+      return;
+    }
     setChatInput("");
   };
 
@@ -392,6 +438,15 @@ function LivePageInner() {
     alert(`${nickname}님이 차단되었습니다.`);
   };
 
+  const banGuest = async (guestId: string, nickname: string) => {
+    if (!mainBj || !confirm(`${nickname}님(비회원)을 채팅 차단하시겠습니까?`)) return;
+    await fetch("/api/bj/chat/ban", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bjId: mainBj.id, guestId, nickname }),
+    });
+    alert(`${nickname}님이 차단되었습니다.`);
+  };
+
   const addManager = async (userId: number, nickname: string) => {
     if (!mainBj || !confirm(`${nickname}님을 매니저로 지정하시겠습니까?`)) return;
     await fetch("/api/bj/chat/manager", {
@@ -407,6 +462,29 @@ function LivePageInner() {
     user.role === "ADMIN" || user.role === "SUPERADMIN" ||
     chatSettings?.isBjOwner || chatSettings?.isManager
   );
+
+  // 관리자만: admin room 가입 + 현재 시청 중인 BJ 방송 접속자 목록 수신
+  useEffect(() => {
+    if (!isAdmin) return;
+    const s = getSocket();
+    const onOnline = (data: { bjId?: number; members: { nickname: string }[]; guests: { nickname: string }[]; count: number }) => {
+      // mainBjId 와 다른 BJ 변동 알림은 무시
+      if (!mainBjId) return;
+      if (data?.bjId && data.bjId !== mainBjId) return;
+      setOnlineList(data || { members: [], guests: [], count: 0 });
+    };
+    s.on("admin:online-users", onOnline);
+    const join = () => {
+      s.emit("admin:join");
+      if (mainBjId) s.emit("admin:online-users:refresh", { bjId: mainBjId });
+    };
+    if (s.connected) join();
+    s.on("connect", join);
+    return () => {
+      s.off("admin:online-users", onOnline);
+      s.off("connect", join);
+    };
+  }, [isAdmin, mainBjId]);
   // 매니저 지정 권한: BJ 본인 또는 관리자만
   const canAssignManager = user && (
     user.role === "ADMIN" || user.role === "SUPERADMIN" || chatSettings?.isBjOwner
@@ -697,15 +775,38 @@ function LivePageInner() {
         {/* 채팅 */}
         <div className="w-full lg:w-[368px] flex flex-col flex-1 lg:flex-none lg:h-auto min-h-0" style={{ background: "rgba(5,20,40,0.95)", borderLeft: "1px solid rgba(255,255,255,0.08)" }}>
           {/* 헤더: LIVE CHAT 라벨은 데스크탑만 / 관리모드 뱃지는 항상 */}
-          <div className="hidden lg:flex items-center justify-between px-3 py-2 shrink-0" style={{ background: "rgba(0,0,0,0.15)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="hidden lg:flex items-center justify-between px-3 py-2 shrink-0 relative" style={{ background: "rgba(0,0,0,0.15)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ border: "1px solid rgba(110,231,183,0.25)", background: "rgba(110,231,183,0.1)", color: "rgb(110,231,183)" }}>
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: "rgb(110,231,183)" }} />
               LIVE CHAT
             </span>
-            {canModerate && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.2)", color: "#6ee7b7" }}>관리모드</span>}
+            <div className="flex items-center gap-1.5">
+              {isAdmin && (
+                <button onClick={() => setShowOnlineList(v => !v)}
+                  title="접속자 목록"
+                  className="text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1"
+                  style={{ background: showOnlineList ? "rgba(59,130,246,0.35)" : "rgba(59,130,246,0.15)", color: "#93c5fd" }}>
+                  👥 {onlineList.count}
+                </button>
+              )}
+              {canModerate && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.2)", color: "#6ee7b7" }}>관리모드</span>}
+            </div>
+            {isAdmin && showOnlineList && (
+              <OnlineListPanel onlineList={onlineList} bjId={mainBjId ?? null} onClose={() => setShowOnlineList(false)} />
+            )}
           </div>
-          {canModerate && <div className="lg:hidden flex justify-end px-2 py-1 shrink-0" style={{ background: "rgba(0,0,0,0.15)" }}>
+          {canModerate && <div className="lg:hidden flex items-center justify-end gap-1.5 px-2 py-1 shrink-0 relative" style={{ background: "rgba(0,0,0,0.15)" }}>
+            {isAdmin && (
+              <button onClick={() => setShowOnlineList(v => !v)}
+                className="text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1"
+                style={{ background: showOnlineList ? "rgba(59,130,246,0.35)" : "rgba(59,130,246,0.15)", color: "#93c5fd" }}>
+                👥 {onlineList.count}
+              </button>
+            )}
             <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.2)", color: "#6ee7b7" }}>관리모드</span>
+            {isAdmin && showOnlineList && (
+              <OnlineListPanel onlineList={onlineList} bjId={mainBjId ?? null} onClose={() => setShowOnlineList(false)} />
+            )}
           </div>}
 
           {/* 채팅 상단 가입문의 배너 — 데스크탑만 (모바일은 위 BJ 프로필에 동일 버튼) */}
@@ -748,6 +849,14 @@ function LivePageInner() {
               )
             )}
             {chatMessages.map(msg => {
+              // 입/퇴장 알림 — mod-only 수신 (서버에서 권한 분리되어 emit)
+              if (msg.isPresence) {
+                return (
+                  <div key={msg.id} className="mb-1 px-2 py-0.5 text-[10px] text-center italic" style={{ color: "rgba(156,163,175,0.7)" }}>
+                    {msg.text}
+                  </div>
+                );
+              }
               if (isSystemMsg(msg)) {
                 return (
                   <div key={msg.id} className="mb-2 px-3 py-1.5 rounded text-[11px] font-medium text-center" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", color: "rgba(253,224,71,0.9)" }}>
@@ -760,13 +869,14 @@ function LivePageInner() {
               // 관리자/픽스터/BJ는 레벨 뱃지 숨김 — 역할 뱃지만 노출
               const isPrivilegedRole = ["ADMIN", "SUPERADMIN", "PICKSTER", "BJ"].includes(msg.role);
               const isMsgManager = !isPrivilegedRole && !!msg.userId && managerIds.has(msg.userId);
+              const isGuestMsg = !msg.userId && !!msg.guestId;
               return (
                 <div key={msg.id} className="relative mb-1.5 flex items-start"
                   onMouseEnter={() => canModerate ? setHoveredMsg(msg.id) : undefined}
                   onMouseLeave={() => setHoveredMsg(null)}>
                   <div className="flex-1 text-[13px] leading-relaxed break-words min-w-0" style={{ color: "rgba(255,255,255,0.75)" }}>
-                    {/* 일반 유저만 레벨 뱃지 (매니저/관리자/픽스터/BJ는 숨김) */}
-                    {!isPrivilegedRole && !isMsgManager && levelDisplayMode !== "none" && typeof msg.level === "number" && (
+                    {/* 일반 유저만 레벨 뱃지 (매니저/관리자/픽스터/BJ/비회원은 숨김) */}
+                    {!isPrivilegedRole && !isMsgManager && !isGuestMsg && levelDisplayMode !== "none" && typeof msg.level === "number" && (
                       <LevelBadge level={msg.level} mode={levelDisplayMode as "badge" | "emoji" | "none"} />
                     )}
                     {/* 매니저 표기 (스패너) */}
@@ -776,8 +886,11 @@ function LivePageInner() {
                         <i className="fas fa-wrench" />
                       </span>
                     )}
+                    {isGuestMsg && (
+                      <span className="inline-block px-1 py-0.5 rounded text-[9px] mr-1" style={{ background: "rgba(156,163,175,0.2)", color: "#9ca3af" }}>손님</span>
+                    )}
                     {rs && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold text-white mr-1" style={{ background: rs.bg }}>{rs.label}</span>}
-                    <span className="font-bold" style={{ color: rs?.bg || "#60a5fa" }}>{msg.nickname} : </span>
+                    <span className="font-bold" style={{ color: rs?.bg || (isGuestMsg ? "#9ca3af" : "#60a5fa") }}>{msg.nickname} : </span>
                     <span>{msg.text}</span>
                   </div>
                   {/* hover 시 오른쪽 버튼 */}
@@ -789,6 +902,10 @@ function LivePageInner() {
                         className="w-6 h-6 flex items-center justify-center rounded text-[10px] hover:bg-red-500/30" style={{ color: "#f87171" }}>✕</button>
                       {msg.userId && (
                         <button onClick={() => banUser(msg.userId!, msg.nickname)} title="차단"
+                          className="w-6 h-6 flex items-center justify-center rounded text-[10px] hover:bg-orange-500/30" style={{ color: "#fbbf24" }}>🚫</button>
+                      )}
+                      {isGuestMsg && (
+                        <button onClick={() => banGuest(msg.guestId!, msg.nickname)} title="비회원 차단"
                           className="w-6 h-6 flex items-center justify-center rounded text-[10px] hover:bg-orange-500/30" style={{ color: "#fbbf24" }}>🚫</button>
                       )}
                       {canAssignManager && msg.userId && (
@@ -803,12 +920,21 @@ function LivePageInner() {
           </div>
 
           <div className="px-3.5 py-3 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-            {user ? (
-              isBanned ? (
-                <div className="text-center text-[13px] py-1" style={{ color: "rgba(239,68,68,0.7)" }}>채팅이 차단되었습니다.</div>
-              ) : (
+            {isBanned ? (
+              <div className="text-center text-[13px] py-1" style={{ color: "rgba(239,68,68,0.7)" }}>채팅이 차단되었습니다.</div>
+            ) : (
+              <>
+                {!user && guest && (
+                  <div className="text-[10px] mb-1.5 flex items-center justify-between" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    <span>비회원: <span className="font-bold" style={{ color: "#9ca3af" }}>{guest.name}</span></span>
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent("open-login-modal"))}
+                      className="text-sky-400 hover:underline font-bold text-[10px]"
+                    >로그인</button>
+                  </div>
+                )}
                 <div className="flex gap-1.5">
-                  <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} placeholder="채팅 입력..." maxLength={100}
+                  <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} placeholder={user ? "채팅 입력..." : "비회원으로 채팅..."} maxLength={100}
                     autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
                     onFocus={() => {
                       setChatFocused(true);
@@ -819,19 +945,54 @@ function LivePageInner() {
                     className="flex-1 rounded-lg px-3 py-2 text-[16px] lg:text-[14px] focus:outline-none" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }} />
                   <button onMouseDown={(e) => e.preventDefault()} onClick={sendMessage} className="px-4 py-2 rounded-lg text-xs font-bold text-white shrink-0" style={{ background: "var(--brand)" }}>전송</button>
                 </div>
-              )
-            ) : (
-              <div className="text-center text-[13px]" style={{ color: "rgba(255,255,255,0.35)" }}>
-                🔒 채팅에 참여하려면{" "}
-                <button
-                  onClick={() => window.dispatchEvent(new CustomEvent("open-login-modal"))}
-                  className="text-sky-400 hover:underline font-bold"
-                >로그인</button>
-                이 필요합니다.
-              </div>
+              </>
             )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// 관리자용 — 헤더 아래 드롭다운으로 표시되는 작은 접속자 목록 패널
+function OnlineListPanel({ onlineList, bjId, onClose }: {
+  onlineList: { members: { nickname: string }[]; guests: { nickname: string }[]; count: number };
+  bjId: number | null;
+  onClose: () => void;
+}) {
+  const [spinning, setSpinning] = useState(false);
+  const refresh = () => {
+    if (!bjId) return;
+    setSpinning(true);
+    getSocket().emit("admin:online-users:refresh", { bjId });
+    setTimeout(() => setSpinning(false), 500);
+  };
+  return (
+    <div className="absolute right-2 top-full mt-1 z-30 w-[180px] rounded-lg shadow-xl"
+      style={{ background: "rgba(15,30,55,0.98)", border: "1px solid rgba(255,255,255,0.12)" }}>
+      <div className="flex items-center justify-between px-2.5 py-1.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <span className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.7)" }}>접속자 {onlineList.count}명</span>
+        <div className="flex items-center gap-1">
+          <button onClick={refresh} title="새로고침" className={`text-[11px] ${spinning ? "animate-spin" : ""}`} style={{ color: "rgba(147,197,253,0.85)" }}>↻</button>
+          <button onClick={onClose} className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>✕</button>
+        </div>
+      </div>
+      <div className="max-h-[220px] overflow-y-auto px-2 py-1.5 text-[11px] space-y-0.5">
+        {onlineList.members.length === 0 && onlineList.guests.length === 0 && (
+          <div className="text-center py-2" style={{ color: "rgba(255,255,255,0.35)" }}>접속자가 없습니다.</div>
+        )}
+        {onlineList.members.map((m, i) => (
+          <div key={`m-${i}`} className="flex items-center gap-1 truncate">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#22c55e" }} />
+            <span className="truncate" style={{ color: "rgba(255,255,255,0.85)" }}>{m.nickname}</span>
+          </div>
+        ))}
+        {onlineList.guests.map((g, i) => (
+          <div key={`g-${i}`} className="flex items-center gap-1 truncate">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#9ca3af" }} />
+            <span className="truncate" style={{ color: "rgba(156,163,175,0.85)" }}>{g.nickname}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

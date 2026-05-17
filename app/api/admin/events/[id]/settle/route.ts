@@ -60,7 +60,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (isCorrect) {
       correctCount++;
-      await grantReward(v.userId, "event_correct", `이벤트 적중: ${event.title}`);
+      // 수동 보상 모드: event.rewardPoints가 set → 그 값 직접 지급
+      // 기본 보상 모드: activityReward(event_correct) 사용
+      if (event.rewardPoints !== null && event.rewardPoints > 0) {
+        const u = await prisma.user.update({
+          where: { id: v.userId },
+          data: { points: { increment: event.rewardPoints } },
+          select: { points: true },
+        });
+        await prisma.pointLog.create({
+          data: { userId: v.userId, type: "EARN", amount: event.rewardPoints, reason: `이벤트 적중 (수동 보상): ${event.title}`, balance: u.points },
+        });
+      } else {
+        await grantReward(v.userId, "event_correct", `이벤트 적중: ${event.title}`);
+      }
 
       // 연승 streak ++ (atomic)
       const updated = await prisma.user.update({

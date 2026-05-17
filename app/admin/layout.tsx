@@ -119,6 +119,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [recentLogs, setRecentLogs] = useState<LogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(true);
 
+  // 접속자 목록
+  interface OnlineUser { nickname: string; isGuest: boolean; joinedAt: number; }
+  const [onlineUsers, setOnlineUsers] = useState<{ members: OnlineUser[]; guests: OnlineUser[]; count: number }>({ members: [], guests: [], count: 0 });
+  const [showOnline, setShowOnline] = useState(false);
+
   // 알림 시스템
   const [alarmMuted, setAlarmMuted] = useState(false);
   const [newNotify, setNewNotify] = useState<{ type: string; nickname: string; product?: string } | null>(null);
@@ -188,8 +193,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       setTimeout(() => setNewNotify(null), 5000);
     };
 
+    const onOnlineUsers = (data: { members: OnlineUser[]; guests: OnlineUser[]; count: number }) => {
+      setOnlineUsers(data);
+    };
+
     s.on("admin:notify", onNotify);
-    return () => { s.off("admin:notify", onNotify); };
+    s.on("admin:online-users", onOnlineUsers);
+    return () => { s.off("admin:notify", onNotify); s.off("admin:online-users", onOnlineUsers); };
   }, [user, alarmMuted, playAlarmSound, startRepeatAlarm, loadPending]);
 
   // 대기 건이 0이면 반복 알림 중지
@@ -293,11 +303,69 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </nav>
 
-        <div className="p-4 border-t border-gray-700">
-          <p className="text-[11px] text-gray-500">{user.nickname} ({user.role})</p>
-          <Link href="/" className="text-[11px] text-gray-500 hover:text-white">사이트로 돌아가기</Link>
+        <div className="border-t border-gray-700">
+          <button
+            onClick={() => setShowOnline(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-[12px] text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
+            title="현재 접속자"
+          >
+            <span className="flex items-center gap-2">
+              <i className="fas fa-user-friends text-[11px]" />
+              현재 접속자
+              <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold">{onlineUsers.count}</span>
+            </span>
+            <i className={`fas fa-chevron-${showOnline ? "left" : "right"} text-[9px]`} />
+          </button>
+          <div className="p-4">
+            <p className="text-[11px] text-gray-500">{user.nickname} ({user.role})</p>
+            <Link href="/" className="text-[11px] text-gray-500 hover:text-white">사이트로 돌아가기</Link>
+          </div>
         </div>
       </aside>
+
+      {/* 접속자 슬라이드 패널 — 사이드바 우측에 붙음 */}
+      {showOnline && (
+        <div
+          className="fixed top-0 z-40 h-screen w-[220px] bg-gray-800 text-white border-r border-gray-700 shadow-xl flex flex-col"
+          style={{ left: "14rem" /* w-56 = 14rem */ }}
+        >
+          <div className="h-14 flex items-center justify-between px-3 border-b border-gray-700 shrink-0">
+            <span className="text-[12px] font-bold">
+              접속자 <span className="text-emerald-400">{onlineUsers.count}</span>
+            </span>
+            <button onClick={() => setShowOnline(false)} className="text-gray-400 hover:text-white text-[11px]">
+              <i className="fas fa-times" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto py-2 text-[11px]">
+            {onlineUsers.members.length > 0 && (
+              <div className="mb-2">
+                <div className="px-3 py-1 text-[10px] text-gray-400 uppercase tracking-wide">회원 {onlineUsers.members.length}</div>
+                {onlineUsers.members.map((u, i) => (
+                  <div key={`m${i}`} className="px-3 py-1 flex items-center gap-2 hover:bg-gray-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="truncate">{u.nickname}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {onlineUsers.guests.length > 0 && (
+              <div>
+                <div className="px-3 py-1 text-[10px] text-gray-400 uppercase tracking-wide">비회원 {onlineUsers.guests.length}</div>
+                {onlineUsers.guests.map((u, i) => (
+                  <div key={`g${i}`} className="px-3 py-1 flex items-center gap-2 hover:bg-gray-700 text-gray-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-500 shrink-0" />
+                    <span className="truncate">{u.nickname}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {onlineUsers.count === 0 && (
+              <div className="px-3 py-4 text-center text-gray-500">접속자 없음</div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shrink-0">

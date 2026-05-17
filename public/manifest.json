@@ -8,8 +8,7 @@
   "theme_color": "#0ea5e9",
   "orientation": "portrait-primary",
   "icons": [
-    { "src": "/real_logo/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
-    { "src": "/real_logo/livetv_logo.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/real_logo/livetv_logo.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/logo/logo_background_transparency.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/logo/logo_background_transparency.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

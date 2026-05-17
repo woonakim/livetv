@@ -1,6 +1,7 @@
 "use client";
 
 import { useLevelSettings } from "@/lib/useLevelSettings";
+import { useSiteSettings } from "@/lib/useSiteSettings";
 
 // 폴백 색상 (DB 설정 없을 때)
 const FALLBACK_COLORS: { min: number; max: number; color: string; bg: string }[] = [
@@ -23,25 +24,35 @@ function getFallbackColors(level: number): { color: string; bg: string } {
 
 interface Props {
   level: number;
+  // mode/badge 미지정 시 site-settings(levelDisplayMode) + 레벨 설정(badge) 자동 적용
   mode?: "badge" | "emoji" | "none";
   badge?: string;
 }
 
-export default function LevelBadge({ level, mode = "badge", badge }: Props) {
-  const { settings } = useLevelSettings();
+export default function LevelBadge({ level, mode, badge }: Props) {
+  const { settings, loaded: levelLoaded } = useLevelSettings();
+  const { settings: siteSettings, loaded: siteLoaded } = useSiteSettings();
 
-  if (mode === "none") return null;
-
-  if (mode === "emoji" && badge) {
-    if (badge.startsWith("/")) {
-      // eslint-disable-next-line @next/next/no-img-element
-      return <img src={badge} alt="" className="w-4 h-4 object-contain inline-block mr-0.5" />;
-    }
-    return <span className="mr-0.5">{badge}</span>;
+  // 설정 로드 전엔 placeholder — Lv.1 텍스트 깜빡임 방지
+  if (mode === undefined && (!siteLoaded || !levelLoaded)) {
+    return <span className="inline-block w-4 h-4 mr-0.5" />;
   }
 
-  // DB에서 해당 레벨의 색상 찾기
+  const effectiveMode = (mode ?? (siteSettings.levelDisplayMode as Props["mode"]) ?? "badge");
+  if (effectiveMode === "none") return null;
+
   const setting = settings.find(s => s.level === level);
+  const effectiveBadge = badge ?? setting?.badge ?? "";
+
+  if (effectiveMode === "emoji" && effectiveBadge) {
+    if (effectiveBadge.startsWith("/")) {
+      // eslint-disable-next-line @next/next/no-img-element
+      return <img src={effectiveBadge} alt="" className="w-4 h-4 object-contain inline-block mr-0.5" />;
+    }
+    return <span className="mr-0.5">{effectiveBadge}</span>;
+  }
+
+  // badge 모드 또는 emoji인데 badge 비어있으면 색상 뱃지로 폴백
   const colors = setting?.color && setting?.bgColor
     ? { color: setting.color, bg: setting.bgColor }
     : getFallbackColors(level);

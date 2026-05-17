@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 //   isActive=false 이고 deadline 미래인 케이스(관리자 수동 숨김)는 둘 다 안 노출
 export async function GET() {
   const now = new Date();
-  const [active, past] = await Promise.all([
+  const [active, past, defaultReward] = await Promise.all([
     prisma.event.findMany({
       where: { isActive: true, deadline: { gt: now } },
       orderBy: { createdAt: "desc" },
@@ -20,6 +20,12 @@ export async function GET() {
       take: 50,
       include: { _count: { select: { votes: true } } },
     }),
+    prisma.activityReward.findUnique({ where: { activityKey: "event_correct" }, select: { points: true, isActive: true } }),
   ]);
-  return NextResponse.json({ active, past });
+  const defaultPoints = defaultReward?.isActive ? (defaultReward.points || 0) : 0;
+  const effective = (rp: number | null) => (rp !== null && rp > 0) ? rp : defaultPoints;
+  return NextResponse.json({
+    active: active.map(e => ({ ...e, effectiveRewardPoints: effective(e.rewardPoints) })),
+    past: past.map(e => ({ ...e, effectiveRewardPoints: effective(e.rewardPoints) })),
+  });
 }

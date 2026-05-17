@@ -257,10 +257,13 @@ model Event {
   bottomImg   String   @default("")
   teamA       String
   teamB       String
-  betType     String   @default("승패")
-  reward      String   @default("10,000원 포인트")
+  betType     String   @default("승패")     // 승패 / 승무패 / 핸디캡 / 언더오버
+  betLine     String   @default("")        // 핸디캡/언더오버 기준점 (예: "-1.5", "2.5")
+  reward      String   @default("10,000원 포인트")   // 사용자 노출용 보상 문구
+  rewardPoints Int?                            // 수동 보상 모드 — NULL이면 activityReward 기본값 사용
   deadline    DateTime
   isActive    Boolean  @default(true)
+  allowDraw   Boolean  @default(false)  // 무승부 베팅 옵션 (3-way: A/DRAW/B) — betType=승무패 시 true
   viewCount   Int      @default(0)
   winnerSide  String?              // 정산 결과: "A" / "B" / "DRAW" (NULL=미정산)
   settledAt   DateTime?            // 정산 완료 시각
@@ -632,10 +635,13 @@ model BjChatManager {
 }
 
 // ─── BJ 채팅 차단 ─────────────────────
+// 회원 차단: userId set, guestId null
+// 비회원 차단: userId=0, guestId set (게스트 식별자는 localStorage 기반)
 model BjChatBan {
   id          Int      @id @default(autoincrement())
   bjProfileId Int
-  userId      Int
+  userId      Int      @default(0)
+  guestId     String?
   nickname    String   @default("")
   reason      String   @default("")
   createdAt   DateTime @default(now())
@@ -643,6 +649,7 @@ model BjChatBan {
   bjProfile   BjProfile @relation(fields: [bjProfileId], references: [id], onDelete: Cascade)
 
   @@unique([bjProfileId, userId])
+  @@unique([bjProfileId, guestId])
 }
 
 // ─── BJ 개별 채팅 ─────────────────────

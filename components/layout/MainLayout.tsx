@@ -200,12 +200,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       {/* ── 모바일 상단 헤더 (lg 이상 숨김) ── */}
       <header
-        className="lg:hidden w-full sticky top-0 z-50 flex items-center justify-between px-4"
+        className="lg:hidden w-full sticky top-0 z-50 flex items-center justify-between px-4 overflow-hidden"
         style={{ height: "56px", background: "var(--surface)", borderBottom: "1px solid var(--border)" }}
       >
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2 h-full min-w-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={isDark ? "/livetv_logo_dark.png" : "/real_logo/livetv_logo.png"} alt="LIVETV" className="h-16 object-contain" />
+          <img src={isDark ? "/logo/logo_background_transparency.png" : "/logo/logo_white.png"} alt="LIVETV" className="h-10 max-h-full w-auto object-contain" />
         </Link>
         <div className="flex items-center gap-2">
           <button onClick={toggleDarkMode} className="w-8 h-8 rounded-full flex items-center justify-center transition-colors" style={{ background: "var(--bg)", border: "1px solid var(--border)" }} title={isDark ? "라이트 모드" : "다크 모드"}>
@@ -245,7 +245,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           {/* 로고 */}
           <Link href="/" className="flex items-center gap-2 shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={isDark ? "/livetv_logo_dark.png" : "/real_logo/livetv_logo.png"} alt="LIVETV" className="h-20 object-contain" />
+            <img src={isDark ? "/logo/logo_background_transparency.png" : "/logo/logo_white.png"} alt="LIVETV" className="h-20 object-contain" />
           </Link>
 
           {/* 텍스트 네비게이션 */}
@@ -432,7 +432,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       >
         <div className="max-w-[1572px] mx-auto py-6 px-6 flex items-center gap-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={isDark ? "/livetv_logo_dark.png" : "/real_logo/livetv_logo.png"} alt="LIVETV" className="h-20 object-contain shrink-0" />
+          <img src={isDark ? "/logo/logo_background_transparency.png" : "/logo/logo_white.png"} alt="LIVETV" className="h-20 object-contain shrink-0" />
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             라이브Felix는 스포츠 중계 및 분석 정보를 제공하는 플랫폼입니다.
           </p>

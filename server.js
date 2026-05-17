@@ -117,6 +117,51 @@ app.prepare().then(() => {
 
   let onlineCount = 0;
 
+  // ─── 관리자용: 현재 접속자 목록 추적 ───
+  //  비회원: 클라이언트 localStorage 의 손님XXXXXX (6자리 랜덤) — handshake.auth 로 전달
+  //  멀티탭 dedupe: 회원은 userId, 비회원은 guestId 기준 (한 명당 하나만 카운트)
+  const onlineSockets = new Map(); // socketId -> { userId|null, guestId|null, nickname, isGuest, joinedAt }
+
+  // 특정 BJ 방송을 시청 중인 인원만 (bj:${bjId} room 에 가입된 socket 기준)
+  function getOnlineListByBj(bjId) {
+    if (!bjId) return { bjId, members: [], guests: [], count: 0 };
+    const room = io.sockets.adapter.rooms.get(`bj:${bjId}`);
+    if (!room) return { bjId, members: [], guests: [], count: 0 };
+    const memberMap = new Map();
+    const guestMap = new Map();
+    for (const sid of room) {
+      const e = onlineSockets.get(sid);
+      if (!e) continue;
+      if (e.isGuest) {
+        if (!e.guestId) continue;
+        const prev = guestMap.get(e.guestId);
+        if (!prev || e.joinedAt < prev.joinedAt) {
+          guestMap.set(e.guestId, { nickname: e.nickname, isGuest: true, joinedAt: e.joinedAt });
+        }
+      } else {
+        const prev = memberMap.get(e.userId);
+        if (!prev || e.joinedAt < prev.joinedAt) {
+          memberMap.set(e.userId, { nickname: e.nickname, isGuest: false, joinedAt: e.joinedAt });
+        }
+      }
+    }
+    const members = Array.from(memberMap.values()).sort((a, b) => a.joinedAt - b.joinedAt);
+    const guests = Array.from(guestMap.values()).sort((a, b) => a.joinedAt - b.joinedAt);
+    return { bjId, members, guests, count: members.length + guests.length };
+  }
+
+  // BJ 별로 한 번씩 debounce 해서 admin room 에 변경 push (모든 admin 이 받지만 mainBjId 일치 시에만 반영)
+  const bjBroadcastTimers = new Map();
+  function broadcastOnlineListForBj(bjId) {
+    if (!bjId) return;
+    if (bjBroadcastTimers.has(bjId)) return;
+    const t = setTimeout(() => {
+      bjBroadcastTimers.delete(bjId);
+      io.to("admin").emit("admin:online-users", getOnlineListByBj(bjId));
+    }, 300);
+    bjBroadcastTimers.set(bjId, t);
+  }
+
   // ═══════════════════════════════════════════════════════════
   //  가짜 시청자 부풀리기 (공개채팅 + BJ 라이브)
   //  - 60초마다 SiteSetting/BjProfile 설정 reload
@@ -290,7 +335,23 @@ app.prepare().then(() => {
     // 공개채팅 가짜 시청자 현재값 즉시 전송 (boost 미계산 상태면 즉석 계산)
     socket.emit("viewer:chat", { count: onlineCount + getOrComputeChatBoost(), real: onlineCount });
 
-    // 관리자 room 참가
+    // 접속자 목록 등록
+    // 비회원: 클라이언트 handshake.auth.guestId/guestName 사용 (localStorage 의 6자리 손님번호)
+    const _auth = getUserFromSocket(socket);
+    const _hsAuth = socket.handshake?.auth || {};
+    const _entry = _auth
+      ? { userId: _auth.id, guestId: null, nickname: _auth.nickname || `회원${_auth.id}`, isGuest: false, joinedAt: Date.now() }
+      : {
+          userId: null,
+          guestId: typeof _hsAuth.guestId === "string" ? _hsAuth.guestId : null,
+          nickname: (typeof _hsAuth.guestName === "string" && _hsAuth.guestName) ? _hsAuth.guestName : "손님(미식별)",
+          isGuest: true,
+          joinedAt: Date.now(),
+        };
+    onlineSockets.set(socket.id, _entry);
+    // 사이트 전체 connection 시점 broadcast 는 폐기 — bj:join/bj:leave/disconnect 에서 BJ 별로 broadcast
+
+    // 관리자 room 참가 — 즉시 응답은 mainBjId 모르므로 빈 목록 (클라이언트가 watch bj 시 refresh 호출)
     socket.on("admin:join", () => {
       const auth = getUserFromSocket(socket);
       if (!auth) return;
@@ -299,6 +360,13 @@ app.prepare().then(() => {
           socket.join("admin");
         }
       });
+    });
+
+    // 관리자 — 특정 BJ 방송 시청자 목록 강제 새로고침
+    socket.on("admin:online-users:refresh", ({ bjId } = {}) => {
+      if (!socket.rooms.has("admin")) return;
+      if (!bjId) return;
+      socket.emit("admin:online-users", getOnlineListByBj(bjId));
     });
 
     // ═══════════════════════════════════════
@@ -353,10 +421,52 @@ app.prepare().then(() => {
     // ═══════════════════════════════════════
     //  BJ 개별 채팅 (Socket.IO 전환)
     // ═══════════════════════════════════════
-    socket.on("bj:join", async ({ bjId }) => {
+    // socket.data.joinedBjs: Set<bjId> — disconnect 시 퇴장 알림을 위해 추적
+    socket.data.joinedBjs = new Set();
+
+    // mod 권한 확인 (BJ 본인 / 매니저 / ADMIN+) → mod-room 가입 여부 결정
+    async function isMod(bjId, userId, role) {
+      if (!userId) return false;
+      if (["ADMIN", "SUPERADMIN", "DEVELOPER"].includes(role || "")) return true;
+      const bjProfile = await prisma.bjProfile.findUnique({ where: { id: bjId } });
+      if (bjProfile?.userId === userId) return true;
+      const mgr = await prisma.bjChatManager.findUnique({
+        where: { bjProfileId_userId: { bjProfileId: bjId, userId } },
+      });
+      return !!mgr;
+    }
+
+    // 입/퇴장 알림 — mod-room 으로만 emit (메시지는 DB 저장 안 함, 휘발성)
+    function emitPresence(bjId, kind, nickname) {
+      const modRoom = `bj:${bjId}:mod`;
+      io.to(modRoom).emit("bj:presence", {
+        bjId, kind, nickname, ts: Date.now(),
+      });
+    }
+
+    socket.on("bj:join", async ({ bjId, guestId, guestName }) => {
       if (!bjId) return;
       const room = `bj:${bjId}`;
+      if (socket.data.joinedBjs.has(bjId)) return; // 중복 방지
       socket.join(room);
+      socket.data.joinedBjs.add(bjId);
+
+      const auth = getUserFromSocket(socket);
+      // 본 socket의 식별자 (회원 닉네임 or 게스트 닉네임) 저장 — disconnect 시 사용
+      let presenceName = "";
+      if (auth) {
+        const u = await prisma.user.findUnique({ where: { id: auth.id }, select: { nickname: true, role: true } });
+        presenceName = u?.nickname || auth.nickname || "";
+        // mod 권한자는 mod-room 에도 join
+        if (await isMod(bjId, auth.id, u?.role || auth.role)) {
+          socket.join(`bj:${bjId}:mod`);
+        }
+      } else if (guestName) {
+        presenceName = guestName;
+        socket.data.guestId = guestId || "";
+        socket.data.guestName = guestName;
+      }
+      socket.data[`name:${bjId}`] = presenceName;
 
       // 최근 100개를 desc로 가져온 뒤 reverse → 화면은 오래된 → 최신 순
       // (asc + take 100 시 가장 오래된 100개만 반환되어 신규 메시지 누락되던 버그 수정)
@@ -373,20 +483,33 @@ app.prepare().then(() => {
         const boost = getOrComputeBjBoost(bjId, cfg);
         socket.emit("viewer:bj", { bjId, count: real + boost, real });
       }
+
+      // 입장 알림 (mod-room 으로) + 시청자 목록 갱신 (admin 전체에 broadcast)
+      if (presenceName) emitPresence(bjId, "enter", presenceName);
+      broadcastOnlineListForBj(bjId);
     });
 
     socket.on("bj:leave", ({ bjId }) => {
-      if (bjId) socket.leave(`bj:${bjId}`);
+      if (!bjId) return;
+      if (socket.data.joinedBjs?.has(bjId)) {
+        socket.data.joinedBjs.delete(bjId);
+        socket.leave(`bj:${bjId}`);
+        socket.leave(`bj:${bjId}:mod`);
+        const name = socket.data[`name:${bjId}`];
+        if (name) emitPresence(bjId, "leave", name);
+        broadcastOnlineListForBj(bjId);
+      }
     });
 
-    socket.on("bj:send", async ({ bjId, text, isSystem }) => {
+    socket.on("bj:send", async ({ bjId, text, isSystem, guestId, guestName }) => {
+      if (!bjId || !text?.trim()) return;
       const auth = getUserFromSocket(socket);
-      if (!auth || !bjId || !text?.trim()) return;
       const room = `bj:${bjId}`;
 
       try {
-        // 시스템 메시지
+        // 시스템 메시지 — 회원(BJ 본인/관리자)만 허용
         if (isSystem) {
+          if (!auth) return;
           const user = await prisma.user.findUnique({ where: { id: auth.id }, select: { role: true } });
           const bjProfile = await prisma.bjProfile.findUnique({ where: { id: bjId } });
           const isAdmin = ["ADMIN", "SUPERADMIN", "DEVELOPER"].includes(user?.role || "");
@@ -398,24 +521,42 @@ app.prepare().then(() => {
           return;
         }
 
-        // 차단 확인
-        const ban = await prisma.bjChatBan.findUnique({
-          where: { bjProfileId_userId: { bjProfileId: bjId, userId: auth.id } },
-        });
-        if (ban) { socket.emit("bj:error", { error: "채팅이 차단되었습니다" }); return; }
+        // 회원 메시지
+        if (auth) {
+          const ban = await prisma.bjChatBan.findUnique({
+            where: { bjProfileId_userId: { bjProfileId: bjId, userId: auth.id } },
+          });
+          if (ban) { socket.emit("bj:error", { error: "채팅이 차단되었습니다" }); return; }
 
-        const user = await prisma.user.findUnique({ where: { id: auth.id }, select: { role: true, nickname: true, exp: true } });
-        const level = await getUserLevel(auth.id);
+          const user = await prisma.user.findUnique({ where: { id: auth.id }, select: { role: true, nickname: true, exp: true } });
+          const level = await getUserLevel(auth.id);
+          const msg = await prisma.bjChatMessage.create({
+            data: {
+              bjProfileId: bjId, userId: auth.id,
+              nickname: user?.nickname || auth.nickname || "",
+              role: user?.role || "USER", level, text: text.trim(),
+            },
+          });
+          io.to(room).emit("bj:message", msg);
+          grantChatReward(auth.id, text).catch(() => {});
+          return;
+        }
+
+        // 비회원 메시지 — guestId 차단 확인
+        if (!guestId || !guestName) return;
+        const gban = await prisma.bjChatBan.findUnique({
+          where: { bjProfileId_guestId: { bjProfileId: bjId, guestId } },
+        });
+        if (gban) { socket.emit("bj:error", { error: "채팅이 차단되었습니다" }); return; }
         const msg = await prisma.bjChatMessage.create({
           data: {
-            bjProfileId: bjId, userId: auth.id,
-            nickname: user?.nickname || auth.nickname || "",
-            role: user?.role || "USER", level, text: text.trim(),
+            bjProfileId: bjId, userId: null,
+            nickname: String(guestName).slice(0, 20),
+            role: "USER", level: 0, text: text.trim(),
           },
         });
-        io.to(room).emit("bj:message", msg);
-        // 채팅 보상 (메인 채팅과 동일 cap 공유)
-        grantChatReward(auth.id, text).catch(() => {});
+        // 비회원 메시지는 guestId 를 클라이언트로 전달 (mod 차단 버튼에서 사용)
+        io.to(room).emit("bj:message", { ...msg, guestId });
       } catch (e) { console.error("bj:send error", e); }
     });
 
@@ -466,6 +607,19 @@ app.prepare().then(() => {
     socket.on("disconnect", () => {
       onlineCount = Math.max(0, onlineCount - 1);
       io.emit("online:count", onlineCount);
+      // disconnect 시점: socket.io 는 room 을 자동 leave 처리하므로 onlineSockets 제거 후 broadcast 시
+      // 해당 BJ room 의 시청자 목록에서 자동으로 빠진다.
+      const joined = Array.from(socket.data?.joinedBjs || []);
+      onlineSockets.delete(socket.id);
+      for (const bjId of joined) {
+        const name = socket.data[`name:${bjId}`];
+        if (name) {
+          io.to(`bj:${bjId}:mod`).emit("bj:presence", {
+            bjId, kind: "leave", nickname: name, ts: Date.now(),
+          });
+        }
+        broadcastOnlineListForBj(bjId);
+      }
     });
   });
 

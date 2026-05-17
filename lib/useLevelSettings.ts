@@ -38,14 +38,16 @@ async function fetchLevelSettings(): Promise<LevelSetting[]> {
 
 export function useLevelSettings() {
   const [settings, setSettings] = useState<LevelSetting[]>(cachedSettings || []);
+  const [loaded, setLoaded] = useState<boolean>(cachedSettings !== null);
 
   useEffect(() => {
     if (cachedSettings) {
       setSettings(cachedSettings);
+      setLoaded(true);
       return;
     }
-    fetchLevelSettings().then(setSettings);
+    fetchLevelSettings().then(d => { setSettings(d); setLoaded(true); });
   }, []);
 
-  return { settings };
+  return { settings, loaded };
 }

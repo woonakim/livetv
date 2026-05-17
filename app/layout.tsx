@@ -57,7 +57,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <meta name="theme-color" content="#0ea5e9" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <link rel="apple-touch-icon" href="/real_logo/livetv_logo.png" />
+        <link rel="apple-touch-icon" href="/logo/logo_background_transparency.png" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
       </head>
       <body className="antialiased">

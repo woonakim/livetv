@@ -91,7 +91,7 @@ export default function InstallPrompt() {
       >
         <div className="w-11 h-11 rounded-xl shrink-0 flex items-center justify-center overflow-hidden" style={{ background: "var(--brand)" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/real_logo/livetv_logo.png" alt="" className="w-9 h-9 object-contain" />
+          <img src="/logo/logo_background_transparency.png" alt="" className="w-9 h-9 object-contain" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-bold" style={{ color: "var(--text-primary)" }}>
@@ -127,7 +127,7 @@ export default function InstallPrompt() {
         {/* 아이콘 */}
         <div className="w-11 h-11 rounded-xl shrink-0 flex items-center justify-center overflow-hidden" style={{ background: "var(--brand)" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/real_logo/livetv_logo.png" alt="" className="w-9 h-9 object-contain" />
+          <img src="/logo/logo_background_transparency.png" alt="" className="w-9 h-9 object-contain" />
         </div>
         {/* 텍스트 */}
         <div className="flex-1 min-w-0">

@@ -14,14 +14,18 @@ interface EventDetail {
   teamA: string;
   teamB: string;
   betType: string;
+  betLine: string;
   reward: string;
   deadline: string;
   viewCount: number;
   createdAt: string;
+  allowDraw: boolean;
   myPick: string | null;
   teamAVotes: number;
   teamBVotes: number;
+  drawVotes: number;
   totalVotes: number;
+  effectiveRewardPoints?: number;
 }
 
 function useCountdown(deadline: string) {
@@ -85,6 +89,7 @@ export default function EventDetailPage() {
         totalVotes: event.totalVotes + 1,
         teamAVotes: pick === "A" ? event.teamAVotes + 1 : event.teamAVotes,
         teamBVotes: pick === "B" ? event.teamBVotes + 1 : event.teamBVotes,
+        drawVotes: pick === "DRAW" ? event.drawVotes + 1 : event.drawVotes,
       });
     }
   };
@@ -102,8 +107,9 @@ export default function EventDetailPage() {
     return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
   };
 
-  const pctA = event.totalVotes ? Math.round((event.teamAVotes / event.totalVotes) * 100) : 50;
-  const pctB = event.totalVotes ? 100 - pctA : 50;
+  const pctA = event.totalVotes ? Math.round((event.teamAVotes / event.totalVotes) * 100) : (event.allowDraw ? 33 : 50);
+  const pctDraw = event.totalVotes ? Math.round((event.drawVotes / event.totalVotes) * 100) : (event.allowDraw ? 34 : 0);
+  const pctB = event.allowDraw ? Math.max(0, 100 - pctA - pctDraw) : (event.totalVotes ? 100 - pctA : 50);
 
   return (
     <div className="flex flex-col w-full">
@@ -162,8 +168,13 @@ export default function EventDetailPage() {
         <div className="my-12 p-3 rounded-lg" style={{ background: "var(--surface)", boxShadow: "rgba(0,0,0,0.25) 0px 2px 4px 1px" }}>
           <ul className="max-w-[640px] mx-auto py-4">
             <li className="flex flex-wrap justify-center items-center gap-0">
-              <div className="w-full text-[14.4px] px-2.5 pt-0.5 pb-1.5" style={{ color: "var(--text-primary)" }}>
-                1.&nbsp;[{event.betType}]
+              <div className="w-full text-[14.4px] px-2.5 pt-0.5 pb-1.5 flex items-center gap-2 flex-wrap" style={{ color: "var(--text-primary)" }}>
+                <span>1.&nbsp;[{event.betType}{event.betLine ? ` ${event.betLine}` : ""}]</span>
+                {!!event.effectiveRewardPoints && event.effectiveRewardPoints > 0 && (
+                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#fef3c7", color: "#92400e" }}>
+                    상금 : {event.effectiveRewardPoints.toLocaleString()}포인트
+                  </span>
+                )}
               </div>
               <div className="flex w-full h-[65px] justify-center items-stretch overflow-hidden">
                 {/* Team A */}
@@ -182,10 +193,36 @@ export default function EventDetailPage() {
                   {voted && <span className="text-[10px] mt-0.5 font-bold">{pctA}%</span>}
                 </button>
 
-                {/* VS */}
-                <div className="w-[56px] flex justify-center items-center text-sm font-semibold" style={{ background: "#d5d5d5", border: "1.5px solid #ccc", color: "#6d6d6d" }}>
-                  VS
-                </div>
+                {/* 가운데 영역 — betType별 분기:
+                    • 승무패(allowDraw): 무승부 클릭 버튼
+                    • 핸디캡: 기준점 텍스트 (예: -1.5)
+                    • 언더오버: 기준점 텍스트
+                    • 승패(기본): VS */}
+                {event.allowDraw ? (
+                  <button
+                    onClick={() => !voted && !countdown.expired && setPick("DRAW")}
+                    disabled={voted || countdown.expired}
+                    className="w-[80px] sm:w-[100px] flex flex-col justify-center items-center text-sm font-semibold transition-colors"
+                    style={{
+                      border: pick === "DRAW" ? "2px solid var(--brand)" : "1.5px solid var(--border)",
+                      background: pick === "DRAW" ? "rgba(255,140,0,0.08)" : "transparent",
+                      color: pick === "DRAW" ? "var(--brand)" : "var(--text-primary)",
+                      cursor: voted || countdown.expired ? "default" : "pointer",
+                    }}
+                  >
+                    <span className="text-[12px]">무승부</span>
+                    {voted && <span className="text-[10px] mt-0.5 font-bold">{pctDraw}%</span>}
+                  </button>
+                ) : (event.betType === "핸디캡" || event.betType === "언더오버") && event.betLine ? (
+                  <div className="w-[72px] sm:w-[84px] flex flex-col justify-center items-center" style={{ background: "#f1f5f9", border: "1.5px solid #cbd5e1", color: "var(--text-primary)" }}>
+                    <span className="text-[10px] font-bold" style={{ color: "var(--text-secondary)" }}>{event.betType}</span>
+                    <span className="text-base font-black" style={{ color: "var(--brand)" }}>{event.betLine}</span>
+                  </div>
+                ) : (
+                  <div className="w-[56px] flex justify-center items-center text-sm font-semibold" style={{ background: "#d5d5d5", border: "1.5px solid #ccc", color: "#6d6d6d" }}>
+                    VS
+                  </div>
+                )}
 
                 {/* Team B */}
                 <button
@@ -211,7 +248,7 @@ export default function EventDetailPage() {
             {voted ? (
               <div className="w-full max-w-[472px] flex flex-col items-center gap-2">
                 <div className="w-full h-10 flex justify-center items-center rounded text-white font-bold text-base" style={{ background: "#22c55e" }}>
-                  ✅ 참여 중 — {pick === "A" ? event.teamA : event.teamB} 선택
+                  ✅ 참여 중 — {pick === "A" ? event.teamA : pick === "B" ? event.teamB : "무승부"} 선택
                 </div>
                 <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
                   현재 {event.totalVotes}명 참여
