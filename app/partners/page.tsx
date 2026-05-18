@@ -10,6 +10,7 @@ interface Partner {
   badge: string;
   desc: string;
   img: string;
+  thumb: string;
   likes: number;
   views: number;
 }
@@ -17,9 +18,13 @@ interface Partner {
 export default function PartnersPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [liked, setLiked] = useState<Record<number, boolean>>({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/partners").then(r => r.json()).then(setPartners);
+    fetch("/api/partners")
+      .then(r => r.json())
+      .then(setPartners)
+      .finally(() => setLoading(false));
   }, []);
 
   const toggleLike = (e: React.MouseEvent, id: number) => {
@@ -29,7 +34,15 @@ export default function PartnersPage() {
 
   return (
     <>
-      <div className="p-2">
+      {/* 본문 가독성 강제 설정 — zoom 1.2 / weight 700 / 보조 텍스트 짙은 검정 (페이지 단위) */}
+      <div
+        className="p-2"
+        style={{
+          zoom: 1.2,
+          fontWeight: 700,
+          ["--text-secondary" as string]: "rgb(30,41,59)",
+        } as React.CSSProperties}
+      >
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-lg font-black" style={{ color: "var(--brand)" }}>🤝 스폰업체</h1>
@@ -60,10 +73,10 @@ export default function PartnersPage() {
                     {partner.badge}
                   </span>
 
-                  {/* 썸네일 */}
+                  {/* 썸네일 — thumb (목록용) 우선, 없으면 img (배너) 폴백 */}
                   <div className="w-full overflow-hidden" style={{ aspectRatio: "4/3" }}>
                     <img
-                      src={partner.img}
+                      src={partner.thumb || partner.img}
                       alt={partner.name}
                       className="w-full h-full object-cover"
                     />
@@ -111,6 +124,11 @@ export default function PartnersPage() {
             );
           })}
         </ul>
+        {loading ? (
+          <p className="py-12 text-center text-sm" style={{ color: "var(--text-secondary)" }}>불러오는 중...</p>
+        ) : partners.length === 0 ? (
+          <p className="py-12 text-center text-sm" style={{ color: "var(--text-secondary)" }}>등록된 스폰업체가 없습니다.</p>
+        ) : null}
       </div>
     </>
   );

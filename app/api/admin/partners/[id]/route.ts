@@ -11,7 +11,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json();
   const id = parseInt(params.id);
   const data: Record<string, unknown> = {};
-  for (const key of ["name", "category", "badge", "desc", "img", "content", "contact", "site"]) {
+  for (const key of ["name", "category", "badge", "desc", "img", "thumb", "content", "contact", "site"]) {
     if (body[key] !== undefined) data[key] = body[key];
   }
   if (body.sortOrder !== undefined) data.sortOrder = parseInt(body.sortOrder);

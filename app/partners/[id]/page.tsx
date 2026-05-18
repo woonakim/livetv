@@ -143,7 +143,14 @@ export default function PartnerDetailPage() {
   const createdDate = new Date(partner.createdAt).toLocaleDateString("ko-KR");
 
   return (
-    <div className="p-2 flex flex-col gap-3">
+    <div
+      className="p-2 flex flex-col gap-3"
+      style={{
+        zoom: 1.2,
+        fontWeight: 700,
+        ["--text-secondary" as string]: "rgb(30,41,59)",
+      } as React.CSSProperties}
+    >
 
       {/* 뒤로가기 */}
       <Link href="/partners" className="flex items-center gap-1 text-xs font-bold w-fit" style={{ color: "var(--text-secondary)" }}>

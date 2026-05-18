@@ -22,12 +22,16 @@ export default function EventsPage() {
   const [past, setPast] = useState<EventItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchType, setSearchType] = useState("title");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/events").then(r => r.json()).then(d => {
-      setActive(Array.isArray(d) ? d : (d.active || []));
-      setPast(Array.isArray(d) ? [] : (d.past || []));
-    });
+    fetch("/api/events")
+      .then(r => r.json())
+      .then(d => {
+        setActive(Array.isArray(d) ? d : (d.active || []));
+        setPast(Array.isArray(d) ? [] : (d.past || []));
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const matchesQuery = (e: EventItem) => {
@@ -129,11 +133,13 @@ export default function EventsPage() {
         </div>
       )}
 
-      {filteredActive.length === 0 && filteredPast.length === 0 && (
+      {loading ? (
+        <p className="py-12 text-center text-sm" style={{ color: "var(--text-secondary)" }}>불러오는 중...</p>
+      ) : filteredActive.length === 0 && filteredPast.length === 0 ? (
         <p className="py-12 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
           {searchQuery ? "검색 결과가 없습니다." : "등록된 이벤트가 없습니다."}
         </p>
-      )}
+      ) : null}
     </>
   );
 }

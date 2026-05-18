@@ -5,6 +5,21 @@
 @import url('https://spoqa.github.io/spoqa-han-sans/css/SpoqaHanSansNeo.css');
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
 
+/* Emoji 전용 폰트 — unicode-range 로 emoji 코드포인트에만 적용.
+   iOS Safari 에서 'Apple Color Emoji' 가 ASCII 숫자(0-9) keycap 글리프로
+   잘못 적용되는 버그 차단 + 한글/숫자 영역엔 일절 영향 없음. */
+@font-face {
+  font-family: 'EmojiOnly';
+  src: local('Apple Color Emoji'), local('Segoe UI Emoji'), local('Noto Color Emoji'), local('Twemoji Mozilla');
+  unicode-range:
+    U+1F000-1FFFF,     /* 메인 emoji (1F300+ 등) */
+    U+2600-27BF,       /* 기타 기호/Dingbats */
+    U+2B00-2BFF,       /* 화살표/별 */
+    U+1F1E6-1F1FF,     /* 국기 */
+    U+200D, U+FE0F, U+20E3,  /* ZWJ, variation selector, keycap combining */
+    U+E0020-E007F;
+}
+
 :root {
   --brand: rgb(14, 165, 233);
   --brand-light: rgba(14, 165, 233, 0.1);
@@ -12,21 +27,86 @@
   --surface: rgb(255, 255, 255);
   --surface-alt: #f4f4f4;
   --text-primary: rgb(10, 10, 10);
-  --text-secondary: rgb(107, 114, 128);
+  --text-secondary: rgb(75, 85, 99);   /* 기존 107,114,128 — 가독성 위해 진하게 */
   --border: rgb(186, 230, 253);
   --accent-green: rgb(24, 210, 100);
   --sidebar-width: 350px;
   --header-height: 95px;
+  /* 메인 폰트 체인엔 emoji 폰트를 직접 넣지 않는다 — 'EmojiOnly' 가 unicode-range 로만 적용됨 */
+  --font-family: 'Spoqa Han Sans Neo', 'Spoqa Han Sans', 'Noto Sans KR', sans-serif;
+  --content-scale: 1;
+  --content-weight: 500;
+  --sidebar-scale: 1;
+  --sidebar-weight: 500;
+  --nav-scale: 1;
+  --nav-weight: 600;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html {
+  /* iOS Safari 모바일 텍스트 자동 보정 차단 — 자간 흔들림 방지 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   background: var(--bg);
   color: var(--text-primary);
-  font-family: 'Spoqa Han Sans Neo', 'Spoqa Han Sans', 'Noto Sans KR', sans-serif;
+  font-family: var(--font-family), 'EmojiOnly';
+  font-weight: var(--content-weight, 500);
   font-size: 14px;
 }
+
+/* 폰트 변경이 모든 자식에 확실히 적용되도록 명시적 설정.
+   'EmojiOnly' 가 unicode-range 로 emoji 코드포인트에만 적용되므로
+   ASCII 숫자/한글에는 절대 emoji 폰트가 끼어들지 않음 (iOS keycap 버그 차단) */
+body, body * { font-family: var(--font-family), 'EmojiOnly'; }
+
+/* Font Awesome 아이콘 보호 — 위의 body * 룰로 인해 한글 폰트로 덮어씌워져 글리프가 깨지지 않도록 명시적 우선 적용.
+   v4/v5/v6 모두 지원. .fas/.far/.fab/.fa 또는 fa- 접두 클래스. */
+.fas, .far, .fab, .fal, .fad, .fa,
+[class^="fa-"], [class*=" fa-"] {
+  font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands",
+                "Font Awesome 5 Free", "Font Awesome 5 Brands",
+                "FontAwesome" !important;
+}
+
+/* 요소별 폰트 세분화 — 변수가 비어 있으면 var(--font-family) fallback.
+   'EmojiOnly' 가 unicode-range 로 emoji 글리프만 처리 (한글/숫자 영향 0). */
+body h1, body h2, body h3, body h4,
+body [class*="text-2xl"], body [class*="text-3xl"], body [class*="text-4xl"],
+body [class*="text-xl"], body [class*="text-lg"],
+body [class*="text-[16px]"], body [class*="text-[17px]"], body [class*="text-[18px]"],
+body [class*="text-[20px]"], body [class*="text-[22px]"], body [class*="text-[24px]"] {
+  font-family: var(--font-heading, var(--font-family)), 'EmojiOnly';
+}
+body p, body li, body td, body th,
+body [class*="text-base"], body [class*="text-sm"],
+body [class*="text-[13px]"], body [class*="text-[14px]"], body [class*="text-[15px]"] {
+  font-family: var(--font-body, var(--font-family)), 'EmojiOnly';
+}
+body [class*="text-xs"],
+body [class*="text-[10px]"], body [class*="text-[11px]"], body [class*="text-[12px]"],
+body [class*="text-[9px]"], body [class*="text-[8px]"] {
+  font-family: var(--font-meta, var(--font-family)), 'EmojiOnly';
+}
+
+/* 영역별 크기/굵기 — Tailwind 의 text-[Npx] 같은 hardcoded font-size 도
+   비례 확대되도록 zoom 사용 (font-size 만 변경하면 px 클래스가 우선되어 무시됨) */
+[data-content-zone] {
+  zoom: var(--content-scale, 1);
+}
+[data-section="sidebar"] {
+  zoom: var(--sidebar-scale, 1);
+  font-weight: var(--sidebar-weight, 500);
+}
+[data-section="nav"] {
+  zoom: var(--nav-scale, 1);
+  font-weight: var(--nav-weight, 600);
+}
+/* 본문 안의 모든 일반 텍스트 굵기 (px hardcoded 와 무관하게 적용) */
+[data-content-zone] { font-weight: var(--content-weight, 500); }
 
 /* 카드 그림자 */
 .shadow-card { box-shadow: 0px 1px 3px 0px rgba(8,8,8,0.38); }

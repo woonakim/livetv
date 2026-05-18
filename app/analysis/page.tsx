@@ -73,7 +73,15 @@ export default function AnalysisPage() {
 
   return (
     <>
-      <div className="flex flex-col gap-3 p-2">
+      {/* 본문 가독성 강제 설정 — zoom 1.2 / weight 700 / 보조 텍스트 짙은 검정 (페이지 단위) */}
+      <div
+        className="flex flex-col gap-3 p-2"
+        style={{
+          zoom: 1.2,
+          fontWeight: 700,
+          ["--text-secondary" as string]: "rgb(30,41,59)",
+        } as React.CSSProperties}
+      >
 
         {/* 헤더 */}
         <div className="flex items-center justify-between">

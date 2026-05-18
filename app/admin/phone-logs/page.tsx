@@ -50,8 +50,8 @@ export default function AdminPhoneLogsPage() {
         <select value={type} onChange={e => { setType(e.target.value); setPage(1); }}
           className="h-8 px-2 rounded text-[13px]" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
           <option value="">전체 유형</option>
-          <option value="send">발송</option>
-          <option value="verify">인증</option>
+          <option value="send">인증요청</option>
+          <option value="verify">인증완료</option>
         </select>
         <label className="flex items-center gap-1.5 cursor-pointer text-[12px] font-bold px-3 py-1.5 rounded" style={{ color: "var(--text-primary)", border: "1px solid var(--border)" }}>
           <input type="checkbox" checked={successOnly} onChange={e => { setSuccessOnly(e.target.checked); setPage(1); }} />
@@ -86,13 +86,19 @@ export default function AdminPhoneLogsPage() {
                   <td className="px-3 py-2 font-mono" style={{ color: "var(--text-primary)" }}>{l.phone}</td>
                   <td className="px-3 py-2 text-center">
                     <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold text-white" style={{ background: l.type === "send" ? "#3b82f6" : "#8b5cf6" }}>
-                      {l.type === "send" ? "발송" : "인증"}
+                      {l.type === "send" ? "인증요청" : "인증완료"}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-center">
                     {l.success
-                      ? <span className="text-[10px] font-bold text-green-600"><i className="fas fa-check-circle mr-1" />성공</span>
-                      : <span className="text-[10px] font-bold text-red-500"><i className="fas fa-times-circle mr-1" />실패</span>}
+                      ? <span className="text-[10px] font-bold text-green-600">
+                          <i className="fas fa-check-circle mr-1" />
+                          {l.type === "send" ? "요청 완료" : "인증 성공"}
+                        </span>
+                      : <span className="text-[10px] font-bold text-red-500">
+                          <i className="fas fa-times-circle mr-1" />
+                          {l.type === "send" ? "요청 실패" : "인증 실패"}
+                        </span>}
                   </td>
                   <td className="px-3 py-2 font-mono text-[10px]" style={{ color: "var(--text-secondary)" }}>{l.ip || "-"}</td>
                 </tr>

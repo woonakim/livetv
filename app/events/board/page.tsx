@@ -15,9 +15,13 @@ interface EventPost {
 export default function EventBoardPage() {
   const [posts, setPosts] = useState<EventPost[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/event-board").then(r => r.json()).then(setPosts);
+    fetch("/api/event-board")
+      .then(r => r.json())
+      .then(setPosts)
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = posts.filter(p => {
@@ -111,11 +115,13 @@ export default function EventBoardPage() {
             </li>
           ))}
 
-          {filtered.length === 0 && (
+          {loading ? (
+            <li className="py-12 text-center text-sm" style={{ color: "var(--text-secondary)" }}>불러오는 중...</li>
+          ) : filtered.length === 0 ? (
             <li className="py-12 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
-              검색 결과가 없습니다.
+              {searchQuery ? "검색 결과가 없습니다." : "등록된 게시글이 없습니다."}
             </li>
-          )}
+          ) : null}
         </ul>
 
       </div>

@@ -871,10 +871,12 @@ function LivePageInner() {
               const isMsgManager = !isPrivilegedRole && !!msg.userId && managerIds.has(msg.userId);
               const isGuestMsg = !msg.userId && !!msg.guestId;
               return (
-                <div key={msg.id} className="relative mb-1.5 flex items-start"
+                <div key={msg.id} className="relative mb-1.5 rounded -mx-1 px-1 py-0.5"
                   onMouseEnter={() => canModerate ? setHoveredMsg(msg.id) : undefined}
-                  onMouseLeave={() => setHoveredMsg(null)}>
-                  <div className="flex-1 text-[13px] leading-relaxed break-words min-w-0" style={{ color: "rgba(255,255,255,0.75)" }}>
+                  onMouseLeave={() => setHoveredMsg(null)}
+                  style={{ background: canModerate && isHovered ? "rgba(255,255,255,0.05)" : "transparent" }}>
+                  {/* 텍스트는 항상 자연스러운 폭으로 렌더 (좌측 쏠림 방지) — 버튼은 hover 시 absolute 로 텍스트 위에 overlay */}
+                  <div className="text-[13px] leading-relaxed break-words" style={{ color: "rgba(255,255,255,0.75)" }}>
                     {/* 일반 유저만 레벨 뱃지 (매니저/관리자/픽스터/BJ/비회원은 숨김) */}
                     {!isPrivilegedRole && !isMsgManager && !isGuestMsg && levelDisplayMode !== "none" && typeof msg.level === "number" && (
                       <LevelBadge level={msg.level} mode={levelDisplayMode as "badge" | "emoji" | "none"} />
@@ -893,9 +895,10 @@ function LivePageInner() {
                     <span className="font-bold" style={{ color: rs?.bg || (isGuestMsg ? "#9ca3af" : "#60a5fa") }}>{msg.nickname} : </span>
                     <span>{msg.text}</span>
                   </div>
-                  {/* hover 시 오른쪽 버튼 */}
+                  {/* hover 시 오른쪽 버튼 — absolute 로 띄워 텍스트 흐름 영향 없음 */}
                   {canModerate && isHovered && (
-                    <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                    <div className="absolute right-1 top-0.5 flex items-center gap-0.5 px-0.5 rounded shadow"
+                      style={{ background: "rgba(5,20,40,0.92)" }}>
                       <button onClick={() => pinMessage(msg.id, true)} title="고정"
                         className="w-6 h-6 flex items-center justify-center rounded text-[10px] hover:bg-blue-500/30" style={{ color: "#60a5fa" }}>📌</button>
                       <button onClick={() => deleteMessage(msg.id)} title="삭제"

@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       badge: body.badge || "공식제휴",
       desc: body.desc || "",
       img: body.img || "/business.png",
+      thumb: body.thumb || "",
       content: body.content || "",
       contact: body.contact || "1234",
       site: body.site || "#",

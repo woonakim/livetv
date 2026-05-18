@@ -10,9 +10,13 @@ interface Notice {
 export default function NoticePage() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/notices").then(r => r.json()).then(setNotices);
+    fetch("/api/notices")
+      .then(r => r.json())
+      .then(setNotices)
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = notices.filter(n => !searchQuery.trim() || n.title.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -54,9 +58,13 @@ export default function NoticePage() {
               </Link>
             </li>
           ))}
-          {filtered.length === 0 && (
-            <li className="py-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>공지사항이 없습니다.</li>
-          )}
+          {loading ? (
+            <li className="py-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>불러오는 중...</li>
+          ) : filtered.length === 0 ? (
+            <li className="py-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+              {searchQuery ? "검색 결과가 없습니다." : "공지사항이 없습니다."}
+            </li>
+          ) : null}
         </ul>
       </div>
     </>

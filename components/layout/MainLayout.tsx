@@ -11,6 +11,8 @@ import FloatingPanel from "./FloatingPanel";
 // import GoldAccentPanel from "@/components/ui/GoldAccentPanel";
 import InstallPrompt from "@/components/ui/InstallPrompt";
 import AccessTracker from "@/components/ui/AccessTracker";
+// CommunityPalette 비활성화 — 페이지별 inline 스타일로 가독성 직접 적용
+// import CommunityPalette, { applyCommunityPaletteFromStorage } from "@/components/ui/CommunityPalette";
 import { resetSocket } from "@/lib/socket";
 
 const NAV_ICON_MAP: Record<string, string> = {
@@ -181,6 +183,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => { fetchUser(); }, [fetchUser]);
 
+  // CommunityPalette 비활성화 (페이지별 inline 스타일 사용 중)
+  // useEffect(() => { applyCommunityPaletteFromStorage(); }, []);
+
   // 다른 페이지(라이브 등)에서 로그인 모달 오픈 요청 — open-login-modal 이벤트 listen
   useEffect(() => {
     const onOpenLogin = () => setModal("login");
@@ -193,13 +198,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
+  // const isAdmin = user && (user.role === "ADMIN" || user.role === "SUPERADMIN" || user.role === "DEVELOPER");
+
   return (
     <div className="min-h-screen flex flex-col items-center" style={{ background: "var(--bg)" }}>
       <InstallPrompt />
+      {/* {isAdmin && <CommunityPalette />} */}
       <AccessTracker />
 
       {/* ── 모바일 상단 헤더 (lg 이상 숨김) ── */}
       <header
+        data-section="nav"
         className="lg:hidden w-full sticky top-0 z-50 flex items-center justify-between px-4 overflow-hidden"
         style={{ height: "56px", background: "var(--surface)", borderBottom: "1px solid var(--border)" }}
       >
@@ -234,6 +243,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       {/* ── 데스크탑 헤더 (모바일 숨김) ── */}
       <header
+        data-section="nav"
         className="hidden lg:flex w-full sticky top-0 z-50 items-center"
         style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}
       >
@@ -416,10 +426,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               onLogout={handleLogout}
             />
           </div>
-          <div className="flex-1 min-w-0 flex flex-col gap-2 px-2 lg:px-0">
+          <div data-content-zone className="flex-1 min-w-0 flex flex-col gap-2 px-2 lg:px-0">
             {children}
           </div>
-          <div className="hidden lg:flex">
+          <div className="hidden lg:flex" data-section="sidebar">
             <LeftSidebar />
           </div>
         </main>
@@ -482,6 +492,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       {/* ── 모바일 하단 네비게이션 (lg 이상 숨김, /live는 전체 숨김) ── */}
       <nav
+        data-section="nav"
         className={`lg:hidden fixed bottom-0 left-0 right-0 z-[70] flex items-stretch ${pathname.startsWith("/live") ? "hidden" : ""}`}
         style={{ height: "56px", background: "var(--surface)", borderTop: "1px solid var(--border)" }}
       >

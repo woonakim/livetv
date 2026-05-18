@@ -140,7 +140,7 @@ export default function RightSidebar({ user, authReady, onLoginSuccess, onOpenRe
   };
 
   return (
-    <aside className="flex flex-col gap-2 shrink-0" style={{ width: "var(--sidebar-width)" }}>
+    <aside data-section="sidebar" className="flex flex-col gap-2 shrink-0" style={{ width: "var(--sidebar-width)" }}>
 
       {/* 상단 배너 (DB 관리) */}
       <SidebarBanners position="right_top" />

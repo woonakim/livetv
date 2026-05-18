@@ -145,7 +145,14 @@ export default function AnalysisDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-2">
+    <div
+      className="flex flex-col gap-3 p-2"
+      style={{
+        zoom: 1.2,
+        fontWeight: 700,
+        ["--text-secondary" as string]: "rgb(30,41,59)",
+      } as React.CSSProperties}
+    >
       {post && <MetaHead title={post.title} description={post.content?.replace(/<[^>]*>/g, "").slice(0, 150)} />}
       <Link href="/analysis" className="flex items-center gap-1 text-xs font-bold w-fit" style={{ color: "var(--text-secondary)" }}>
         <i className="fas fa-chevron-left text-[10px]" /> 스포츠 분석 목록
