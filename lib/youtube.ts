@@ -60,6 +60,31 @@ const LEAGUE_CATEGORY: Record<string, string> = {
   "LCK": "lol", "LPL": "lol", "LOL": "lol",
 };
 
+// 팀명에서 노이즈 제거 — 리그 접두어, 하이라이트 접미어, 매치 번호, 구분자 뒤 잡문자 등
+function sanitizeTeamName(name: string): string {
+  if (!name) return "";
+  let s = name;
+  // 리그/카테고리 접두어 (이미 league 필드로 저장됨)
+  s = s.replace(/^(일본\s*프로\s*농구|일본\s*농구|일본\s*프로\s*야구|일본\s*야구|일본\s*축구|프로\s*농구|여자\s*프로\s*농구|남자\s*프로\s*농구|프로\s*배구|여자\s*프로\s*배구|남자\s*프로\s*배구|프리미어\s*리그|세리에\s*A|세리에|라\s*리가|분데스리가|리그앙|에레디비시|챔피언스리그|챔스|유로파리그|K\s*리그|FA컵|MLB|KBO|NPB|NBA|KBL|WKBL|V리그|LCK|LPL|LCS|LEC)\s+/gi, "");
+  // 하이라이트/H_L/highlights 류 + 그 뒤의 모든 잡문자 제거
+  s = s.replace(/\s*(하이라이트|H[\s\/.]*L|highlights?|골\s*모음|골\s*장면|풀\s*경기|풀\s*매치|FULL\s*MATCH).*$/gi, "");
+  // LCK/LOL 매치 번호 (예: "매치67", "match 5")
+  s = s.replace(/\s*매치\s*\d+.*$/g, "");
+  s = s.replace(/\s*match\s*\d+.*$/gi, "");
+  // 라운드/세트/회차/일자 패턴
+  s = s.replace(/\s*\d+\s*세트.*$/gi, "");
+  s = s.replace(/\s*\d+\s*R\s*.*$/gi, "");
+  s = s.replace(/\s*\d+R\s*.*$/gi, "");
+  s = s.replace(/\s*\d+회.*$/g, "");
+  // 파이프/슬래시 등 구분자 이후 잡문자
+  s = s.replace(/\s*[|｜/].*$/g, "");
+  // 퓨처스리그 " I", " II" 잔재
+  s = s.replace(/\s+I{1,2}(\s+.*)?$/g, "");
+  // 대괄호 잔재
+  s = s.replace(/\[[^\]]*\]/g, "");
+  return s.trim();
+}
+
 function parseVideoTitle(title: string): { category: string; league: string; homeTeam: string; awayTeam: string; isHighlight: boolean } {
   let category = "etc";
   let league = "";
@@ -90,10 +115,9 @@ function parseVideoTitle(title: string): { category: string; league: string; hom
     }
   }
 
-  // 퓨처스리그 팀명 뒤 " I", " II" (+ 이후 날짜/숫자) 제거
-  // 예: "KT I" → "KT", "NC I 4" → "NC", "삼성 II 5/12" → "삼성"
-  homeTeam = homeTeam.replace(/\s+I{1,2}(\s+.*)?$/, "").trim();
-  awayTeam = awayTeam.replace(/\s+I{1,2}(\s+.*)?$/, "").trim();
+  // 노이즈 제거 (하이라이트/리그명/매치번호/구분자 등)
+  homeTeam = sanitizeTeamName(homeTeam);
+  awayTeam = sanitizeTeamName(awayTeam);
 
   return { category, league, homeTeam, awayTeam, isHighlight };
 }
@@ -145,6 +169,10 @@ function applyChannelOverrides(channelId: string, title: string, parsed: { categ
     if (KBL_NAMES[awayTeam]) awayTeam = KBL_NAMES[awayTeam];
   }
 
+  // 최종 sanitize (override 단계에서 추가된 KBO 패턴 등에도 정규화 적용)
+  homeTeam = sanitizeTeamName(homeTeam);
+  awayTeam = sanitizeTeamName(awayTeam);
+
   return { category, league, homeTeam, awayTeam, isHighlight };
 }
 
@@ -153,6 +181,9 @@ function buildVideoObj(id: string, title: string, channel: string, published: st
   // 티저/예고/비스포츠 영상 제외
   if (/티저|teaser|예고편/i.test(title)) return null;
   if (/버티기|먹방|브이로그|vlog|예능|챌린지|겟인더|리액션|몰래카메라|꿀잼|드라마|김민|나지완|레전드 대결|선수 대결|꿀잼 대결|VS 특집|얼굴|나이|키 차이|신체|밸런스 게임|퀴즈|인터뷰|비하인드|behind/i.test(title)) return null;
+  // 선수 1:1 매치업/특집 차단 — 정상 경기 영상과 혼동 안 되도록 특정 키워드 + 사용자 지정 매치업
+  if (/김혜성.*페라자|페라자.*김혜성/i.test(title)) return null;
+  if (/1\s*[:vs:]\s*1|1\s*대\s*1|맞\s*대결|정면\s*승부|직접\s*대결|타격\s*대결|구속\s*대결|선수\s*매치업|특집\s*매치/i.test(title)) return null;
   // 카테고리가 etc인데 하이라이트도 아닌 경우 제외
   if (overrides.category === "etc" && !overrides.isHighlight) return null;
 
