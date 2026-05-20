@@ -1,5 +1,7 @@
 "use client";
-
+/* felix 대표 추가 요청사항 [필독] -> 방송 딜레이는 기본 1초 딜레이가 목표지만 픽 쫓아오는 사람들이 있어서 bj가 딜레이를 강제해야 하는 경우 있음 */
+/* felix 대표 추가 요청사항 [필독] -> 방송 딜레이는 기본 1초 딜레이가 목표지만 픽 쫓아오는 사람들이 있어서 bj가 딜레이를 강제해야 하는 경우 있음 */
+/* felix 대표 추가 요청사항 [필독] -> 방송 딜레이는 기본 1초 딜레이가 목표지만 픽 쫓아오는 사람들이 있어서 bj가 딜레이를 강제해야 하는 경우 있음 */
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 

@@ -93,7 +93,7 @@ function LivePageInner() {
   const [bjViewerCount, setBjViewerCount] = useState<number | null>(null);
   const [bjViewerReal, setBjViewerReal] = useState<number | null>(null);
 
-  // 관리자용 — 현재 접속자 목록 (admin:online-users 수신)
+  // 관리자용 — 현재 접속자 목록 (admin:online-users 수신) -> felix대표 피드백 필요함
   const [onlineList, setOnlineList] = useState<{ members: { nickname: string }[]; guests: { nickname: string }[]; count: number }>({ members: [], guests: [], count: 0 });
   const [showOnlineList, setShowOnlineList] = useState(false);
 
@@ -174,7 +174,7 @@ function LivePageInner() {
       const all = Array.isArray(allData) ? allData : [];
       setBjs(all);
       if (all.length > 0 && !mainBjRef.current) {
-        // URL ?bj=streamKey 가 있으면 해당 BJ 우선 선택
+        // URL ?bj=streamKey 가 있으면 해당 BJ 우선 선택 -> BJ 개별 선택용임
         const qsKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("bj") : null;
         const fromQuery = qsKey ? all.find(b => b.streamKey === qsKey) : null;
         const firstLive = all.find(b => b.isLive);
