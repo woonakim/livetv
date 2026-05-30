@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 import Script from "next/script";
 import { WebsiteJsonLd } from "@/components/ui/JsonLd";
 
-const BASE_URL = "https://livefelix.com";
+const BASE_URL = "https://livetv-01.com";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await prisma.siteSetting.findFirst().catch(() => null);

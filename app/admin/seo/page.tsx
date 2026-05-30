@@ -112,7 +112,7 @@ export default function AdminSeoPage() {
       <Section title="구글 검색 결과 미리보기">
         <div className="rounded-lg p-4" style={{ background: "#fff", border: "1px solid #dfe1e5" }}>
           <div className="text-[14px] text-[#1a0dab] font-medium truncate">{data.seoTitle || "라이브Felix - 스포츠 중계 분석 커뮤니티"}</div>
-          <div className="text-[12px] text-[#006621] mt-0.5">https://livefelix.com</div>
+          <div className="text-[12px] text-[#006621] mt-0.5">https://livetv-01.com</div>
           <div className="text-[13px] text-[#545454] mt-1 line-clamp-2">{data.seoDescription || "축구, 야구, 농구, 배구, UFC, LOL 무료 스포츠 중계 및 분석 플랫폼."}</div>
         </div>
       </Section>

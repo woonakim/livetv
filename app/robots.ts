@@ -11,7 +11,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     let currentAgent = "*";
     const allow: string[] = [];
     const disallow: string[] = [];
-    let sitemapUrl = "https://livefelix.com/sitemap.xml";
+    let sitemapUrl = "https://livetv-01.com/sitemap.xml";
 
     for (const line of txt.split("\n")) {
       const trimmed = line.trim();
@@ -37,6 +37,6 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
 
   return {
     rules: { userAgent: "*", allow: "/" },
-    sitemap: "https://livefelix.com/sitemap.xml",
+    sitemap: "https://livetv-01.com/sitemap.xml",
   };
 }

@@ -444,7 +444,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={isDark ? "/logo/logo_background_transparency.png" : "/logo/logo_white.png"} alt="LIVETV" className="h-20 object-contain shrink-0" />
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            라이브Felix는 스포츠 중계 및 분석 정보를 제공하는 플랫폼입니다.
+            유카판은 스포츠 중계 및 분석 정보를 제공하는 플랫폼입니다.
           </p>
         </div>
       </footer>

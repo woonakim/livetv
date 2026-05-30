@@ -25,7 +25,7 @@ export function ArticleJsonLd({ title, description, url, datePublished, author }
     url,
     datePublished,
     author: { "@type": "Person", name: author },
-    publisher: { "@type": "Organization", name: "라이브Felix", url: "https://livefelix.com" },
+    publisher: { "@type": "Organization", name: "라이브Felix", url: "https://livetv-01.com" },
   };
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
 }

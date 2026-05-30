@@ -456,7 +456,7 @@ model SiteSetting {
   seoGoogleVerification String  @default("")
   seoGaId              String   @default("")
   seoFavicon           String   @default("")
-  seoRobotsTxt         String   @default("User-agent: *\nAllow: /\nSitemap: https://livefelix.com/sitemap.xml") @db.Text
+  seoRobotsTxt         String   @default("User-agent: *\nAllow: /\nSitemap: https://livetv-01.com/sitemap.xml") @db.Text
   noticeTicker         String   @default("라이브Felix에서 EPL · 챔피언스리그 · NBA · KBO · UFC · LOL 무료 고화질 중계를 즐기세요! 매일 출석체크로 포인트를 적립하고 다양한 이벤트에 참여하세요.") @db.Text
   adminAlarmSound      String   @default("beep")  // beep/bell/chime/ping/alert/drop
   // ── 가짜 공개채팅 시청자 부풀리기 ──
